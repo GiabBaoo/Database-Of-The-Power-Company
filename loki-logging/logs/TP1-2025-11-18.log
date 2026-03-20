@@ -1,0 +1,4 @@
+{"timestamp":"2025-11-18T13:29:55.246Z","level":"insert","message":"Thêm mới sinh viên vào hệ thống","city":"TP1","studentId":"SV001","name":"Nguyễn Văn A","action":"INSERT_DB"}
+{"timestamp":"2025-11-18T13:29:55.247Z","level":"info","message":"Server TP1 đang chạy ổn định","city":"TP1"}
+{"timestamp":"2025-11-18T13:29:55.246Z","level":"insert","message":"Thêm mới sinh viên vào hệ thống","city":"TP1","studentId":"SV001","name":"Nguyễn Văn A","action":"INSERT_DB"}
+{"timestamp":"2025-11-18T13:29:55.247Z","level":"info","message":"Server TP1 đang chạy ổn định","city":"TP1"}

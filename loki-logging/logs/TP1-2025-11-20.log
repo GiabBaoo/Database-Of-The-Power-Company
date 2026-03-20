@@ -1,0 +1,2 @@
+{"timestamp":"2025-11-20T03:10:50.416Z","level":"insert","message":"Thêm mới sinh viên vào hệ thống","city":"TP1","studentId":"SV001","name":"Nguyễn Văn A","action":"INSERT_DB"}
+{"timestamp":"2025-11-20T03:10:50.419Z","level":"info","message":"Server TP1 đang chạy ổn định","city":"TP1"}
