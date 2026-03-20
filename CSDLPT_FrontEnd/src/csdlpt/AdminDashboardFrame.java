@@ -160,6 +160,11 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         jLabel7.setText("Mã Khách Hàng :");
 
         btnCau1.setText("Tìm Kiếm");
+        btnCau1.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnCau1ActionPerformed(evt);
+            }
+        });
 
         tblQuerry.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
@@ -437,6 +442,40 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         CardLayout cl = (CardLayout)(contentPanel.getLayout());
         cl.show(contentPanel, "Querry");
     }//GEN-LAST:event_btnTruyVanActionPerformed
+
+    private void btnCau1ActionPerformed(java.awt.event.ActionEvent evt) {
+        String maNV = txtMNV.getText().trim();
+        String maKH = txtMKH.getText().trim();
+        
+        if (maNV.isEmpty() || maKH.isEmpty()) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Vui lòng nhập Mã Nhân Viên và Mã Khách Hàng!");
+            return;
+        }
+        
+        // Lấy danh sách hóa đơn theo nhân viên và khách hàng
+        List<Map<String, String>> bills = BillDAO.searchBillsByStaffAndCustomer(maNV, maKH);
+        
+        DefaultTableModel model = new DefaultTableModel();
+        model.setColumnIdentifiers(new String[]{"Số HĐN", "Tháng", "Năm", "Số HĐ", "Mã NV", "Số Tiền"});
+        
+        if (bills.isEmpty()) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Không tìm thấy hóa đơn!");
+        } else {
+            for (Map<String, String> bill : bills) {
+                model.addRow(new Object[]{
+                    bill.get("soHDN"),
+                    bill.get("thang"),
+                    bill.get("nam"),
+                    bill.get("soHD"),
+                    bill.get("maNV"),
+                    bill.get("soTien")
+                });
+            }
+            System.out.println("✅ Hiển thị " + bills.size() + " hóa đơn");
+        }
+        
+        tblQuerry.setModel(model);
+    }
 
     private void txtSearchSaffActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtSearchSaffActionPerformed
         // TODO add your handling code here:

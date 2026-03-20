@@ -141,6 +141,44 @@ public class BillDAO {
     }
 
     /**
+     * Tìm hóa đơn theo nhân viên và khách hàng
+     */
+    public static List<Map<String, String>> searchBillsByStaffAndCustomer(String maNV, String maKH) {
+        List<Map<String, String>> bills = new ArrayList<>();
+        String sql = "SELECT h.\"soHDN\", h.\"thang\", h.\"nam\", h.\"soHD\", h.\"maNV\", h.\"soTien\" " +
+                     "FROM hoadon h " +
+                     "WHERE h.\"maNV\" = ? AND h.\"soHD\" IN (" +
+                     "  SELECT hd.\"soHD\" FROM hopdong hd WHERE hd.\"maKH\" = ?" +
+                     ")";
+
+        try (Connection conn = DatabaseConnection.getTP3Connection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, maNV);
+            pstmt.setString(2, maKH);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                Map<String, String> bill = new HashMap<>();
+                bill.put("soHDN", rs.getString("soHDN"));
+                bill.put("thang", rs.getString("thang"));
+                bill.put("nam", rs.getString("nam"));
+                bill.put("soHD", rs.getString("soHD"));
+                bill.put("maNV", rs.getString("maNV"));
+                bill.put("soTien", rs.getString("soTien"));
+                bills.add(bill);
+            }
+            System.out.println("✅ Tìm hóa đơn: " + bills.size() + " hóa đơn của NV " + maNV + " cho KH " + maKH);
+
+        } catch (SQLException e) {
+            System.err.println("❌ Lỗi tìm hóa đơn: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return bills;
+    }
+
+    /**
      * Thêm hóa đơn mới
      */
     public static boolean addBill(String soHDN, int thang, int nam, String soHD, String maNV, double soTien) {
