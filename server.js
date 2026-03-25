@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require('express');
 const cors = require('cors');
 const swaggerSetup = require('./swagger');
-const { GetManh1DBPool, GetManh2DBPool, GetManh3DBPool, GetManh2UserDBPool } = require('./src/Config/DBConnection');
+const { GetManh1DBPool, GetManh2DBPool, GetManh3DBPool, GetManh4DBPool, GetManh2UserDBPool } = require('./src/Config/DBConnection');
 
 const app = express();
 
@@ -46,6 +46,10 @@ GetManh2DBPool()
 GetManh3DBPool()
     .then(() => console.log("✅ Mảnh 3: OK"))
     .catch((err) => console.error("❌ Lỗi Mảnh 3:", err));
+
+GetManh4DBPool()
+    .then(() => console.log("✅ Mảnh 4: OK"))
+    .catch((err) => console.error("❌ Lỗi Mảnh 4:", err));
 
 GetManh2UserDBPool()
     .then(() => console.log("✅ Mảnh User: OK"))

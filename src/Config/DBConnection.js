@@ -76,9 +76,30 @@ const dbConfigManh2Users = {
     }
 };
 
+// ========================================
+// TP4: SomeE SQL Server (mssql)
+// ========================================
+const dbConfigManh4 = {
+    user: process.env.DB_User4,
+    password: process.env.DB_Password4,
+    server: process.env.DB_Server4,
+    port: parseInt(process.env.DB_Server4_Port) || 1433,
+    database: process.env.DB_Name4,
+    options: {
+        encrypt: true,
+        trustServerCertificate: true,
+    },
+    pool: {
+        max: 10,
+        min: 0,
+        idleTimeoutMillis: 30000
+    }
+};
+
 let primaryDBPool;
 let secondaryDBPool;
 let thirdDBPool;
+let fourthDBPool;
 let userDBPool;
 
 // ========================================
@@ -144,6 +165,25 @@ const GetManh3DBPool = async () => {
 };
 
 // ========================================
+// TP4: SomeE SQL Server
+// ========================================
+const GetManh4DBPool = async () => {
+    if (fourthDBPool && fourthDBPool.connected) {
+        return fourthDBPool;
+    }
+
+    try {
+        fourthDBPool = new sql.ConnectionPool(dbConfigManh4);
+        await fourthDBPool.connect();
+        console.log("✅ TP4 (SomeE SQL Server): Kết nối thành công");
+        return fourthDBPool;
+    } catch (err) {
+        console.error("❌ TP4 (SomeE SQL Server): Lỗi kết nối", err.message);
+        throw new Error("Không thể kết nối TP4");
+    }
+};
+
+// ========================================
 // User Database: SomeE SQL Server
 // ========================================
 const GetManh2UserDBPool = async () => {
@@ -194,6 +234,7 @@ module.exports = {
     GetManh1DBPool, 
     GetManh2DBPool, 
     GetManh3DBPool, 
+    GetManh4DBPool,
     GetManh2UserDBPool,
     queryPostgres
 };
