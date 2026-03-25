@@ -96,10 +96,25 @@ const dbConfigManh4 = {
     }
 };
 
+// ========================================
+// TP5: Supabase PostgreSQL (pg)
+// ========================================
+const dbConfigManh5 = {
+    user: process.env.DB_User5,
+    password: process.env.DB_Password5,
+    host: process.env.DB_Server5,
+    port: parseInt(process.env.DB_Server5_Port) || 5432,
+    database: process.env.DB_Name5 || 'postgres',
+    ssl: {
+        rejectUnauthorized: false
+    }
+};
+
 let primaryDBPool;
 let secondaryDBPool;
 let thirdDBPool;
 let fourthDBPool;
+let fifthDBPool;
 let userDBPool;
 
 // ========================================
@@ -184,6 +199,30 @@ const GetManh4DBPool = async () => {
 };
 
 // ========================================
+// TP5: Supabase PostgreSQL
+// ========================================
+const GetManh5DBPool = async () => {
+    if (fifthDBPool) {
+        try {
+            await fifthDBPool.query('SELECT 1');
+            return fifthDBPool;
+        } catch (err) {
+            fifthDBPool = null;
+        }
+    }
+
+    try {
+        fifthDBPool = new Client(dbConfigManh5);
+        await fifthDBPool.connect();
+        console.log("✅ TP5 (Supabase PostgreSQL): Kết nối thành công");
+        return fifthDBPool;
+    } catch (err) {
+        console.error("❌ TP5 (Supabase PostgreSQL): Lỗi kết nối", err.message);
+        throw new Error("Không thể kết nối TP5");
+    }
+};
+
+// ========================================
 // User Database: SomeE SQL Server
 // ========================================
 const GetManh2UserDBPool = async () => {
@@ -235,6 +274,7 @@ module.exports = {
     GetManh2DBPool, 
     GetManh3DBPool, 
     GetManh4DBPool,
+    GetManh5DBPool,
     GetManh2UserDBPool,
     queryPostgres
 };
