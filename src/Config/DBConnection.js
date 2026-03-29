@@ -76,45 +76,9 @@ const dbConfigManh2Users = {
     }
 };
 
-// ========================================
-// TP4: SomeE SQL Server (mssql)
-// ========================================
-const dbConfigManh4 = {
-    user: process.env.DB_User4,
-    password: process.env.DB_Password4,
-    server: process.env.DB_Server4,
-    port: parseInt(process.env.DB_Server4_Port) || 1433,
-    database: process.env.DB_Name4,
-    options: {
-        encrypt: true,
-        trustServerCertificate: true,
-    },
-    pool: {
-        max: 10,
-        min: 0,
-        idleTimeoutMillis: 30000
-    }
-};
-
-// ========================================
-// TP5: Supabase PostgreSQL (pg)
-// ========================================
-const dbConfigManh5 = {
-    user: process.env.DB_User5,
-    password: process.env.DB_Password5,
-    host: process.env.DB_Server5,
-    port: parseInt(process.env.DB_Server5_Port) || 5432,
-    database: process.env.DB_Name5 || 'postgres',
-    ssl: {
-        rejectUnauthorized: false
-    }
-};
-
 let primaryDBPool;
 let secondaryDBPool;
 let thirdDBPool;
-let fourthDBPool;
-let fifthDBPool;
 let userDBPool;
 
 // ========================================
@@ -180,49 +144,6 @@ const GetManh3DBPool = async () => {
 };
 
 // ========================================
-// TP4: SomeE SQL Server
-// ========================================
-const GetManh4DBPool = async () => {
-    if (fourthDBPool && fourthDBPool.connected) {
-        return fourthDBPool;
-    }
-
-    try {
-        fourthDBPool = new sql.ConnectionPool(dbConfigManh4);
-        await fourthDBPool.connect();
-        console.log("✅ TP4 (SomeE SQL Server): Kết nối thành công");
-        return fourthDBPool;
-    } catch (err) {
-        console.error("❌ TP4 (SomeE SQL Server): Lỗi kết nối", err.message);
-        throw new Error("Không thể kết nối TP4");
-    }
-};
-
-// ========================================
-// TP5: Supabase PostgreSQL
-// ========================================
-const GetManh5DBPool = async () => {
-    if (fifthDBPool) {
-        try {
-            await fifthDBPool.query('SELECT 1');
-            return fifthDBPool;
-        } catch (err) {
-            fifthDBPool = null;
-        }
-    }
-
-    try {
-        fifthDBPool = new Client(dbConfigManh5);
-        await fifthDBPool.connect();
-        console.log("✅ TP5 (Supabase PostgreSQL): Kết nối thành công");
-        return fifthDBPool;
-    } catch (err) {
-        console.error("❌ TP5 (Supabase PostgreSQL): Lỗi kết nối", err.message);
-        throw new Error("Không thể kết nối TP5");
-    }
-};
-
-// ========================================
 // User Database: SomeE SQL Server
 // ========================================
 const GetManh2UserDBPool = async () => {
@@ -273,8 +194,6 @@ module.exports = {
     GetManh1DBPool, 
     GetManh2DBPool, 
     GetManh3DBPool, 
-    GetManh4DBPool,
-    GetManh5DBPool,
     GetManh2UserDBPool,
     queryPostgres
 };
