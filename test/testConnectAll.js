@@ -135,3 +135,29 @@ runAllTests().catch(err => {
     console.error(`${colors.red}❌ Lỗi không mong muốn: ${err.message}${colors.reset}`);
     process.exit(1);
 });
+
+async function autoSyncBack() {
+    // --- KIỂM TRA TP2 ---
+    if (await testConnection(TP2)) { 
+        console.log("🔄 TP2 đã sống lại! Đang kiểm tra dữ liệu mới từ TP4...");
+        
+        // Tìm những dòng ở TP4 mà chưa có ở TP2 (is_synced = false)
+        let missingFromTP2 = await TP4.query("SELECT * FROM hoadon WHERE is_synced = false");
+        
+        if (missingFromTP2.length > 0) {
+            for (let data of missingFromTP2) {
+                try {
+                    await TP2.insert(data); // Đổ ngược về chính
+                    await TP4.query(`UPDATE hoadon SET is_synced = true WHERE id = ${data.id}`); // Đánh dấu đã xong
+                } catch (e) { /* Đã tồn tại thì thôi */ }
+            }
+            console.log(`✅ Đã đồng bộ ngược ${missingFromTP2.length} dòng về TP2!`);
+        }
+    }
+
+    // --- KIỂM TRA TP3 (Làm tương tự cho TP5 -> TP3) ---
+    if (await testConnection(TP3)) {
+        console.log("🔄 TP3 đã online! Đang kéo dữ liệu từ TP5 về...");
+        // ... (Logic tương tự như trên)
+    }
+}

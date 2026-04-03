@@ -1,6 +1,6 @@
 node_modules
 /nbproject/private/
 /CSDLPT_FrontEnd/build/
-.env
+#.env
 *.mdf
 *.ldf
