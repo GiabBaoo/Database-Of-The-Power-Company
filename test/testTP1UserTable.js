@@ -1,13 +1,13 @@
 const sql = require("mssql");
 require("dotenv").config();
 
-// Cấu hình kết nối TP1 (Local SQL Server)
+// Cấu hình kết nối TP1 - UsersCsdlPt Database (Local SQL Server)
 const dbConfig = {
-    user: process.env.DB_User,
-    password: process.env.DB_Password,
+    user: process.env.DB_User1_Users,
+    password: process.env.DB_Password1_Users,
     server: process.env.DB_Server1,
     port: parseInt(process.env.DB_Server1_Port) || 1433,
-    database: process.env.DB_Name,
+    database: process.env.DB_Name1_Users,
     options: {
         encrypt: true,
         trustServerCertificate: true,

@@ -4,13 +4,14 @@ const { Client } = require('pg');
 
 // ========================================
 // TP1: Local SQL Server (mssql)
+// Database: DienLuc
 // ========================================
 const dbConfigManh1 = {
-    user: process.env.DB_User,
-    password: process.env.DB_Password,
+    user: process.env.DB_User1_DienLuc,
+    password: process.env.DB_Password1_DienLuc,
     server: process.env.DB_Server1,
     port: parseInt(process.env.DB_Server1_Port) || 1433,
-    database: process.env.DB_Name,
+    database: process.env.DB_Name1_DienLuc,
     options: {
         encrypt: true,
         trustServerCertificate: true,
@@ -30,7 +31,7 @@ const dbConfigManh2 = {
     password: process.env.DB_Password2,
     server: process.env.DB_Server2,
     port: parseInt(process.env.DB_Server2_Port) || 1433,
-    database: process.env.DB_Name2 || process.env.DB_Name,
+    database: process.env.DB_Name2,
     options: {
         encrypt: true,
         trustServerCertificate: true,
@@ -76,10 +77,29 @@ const dbConfigManh2Users = {
     }
 };
 
+// Config cho TP1 - Users Database
+const dbConfigManh1Users = {
+    user: process.env.DB_User1_Users,
+    password: process.env.DB_Password1_Users,
+    server: process.env.DB_Server1,
+    port: parseInt(process.env.DB_Server1_Port) || 1433,
+    database: process.env.DB_Name1_Users,
+    options: {
+        encrypt: true,
+        trustServerCertificate: true,
+    },
+    pool: {
+        max: 10,
+        min: 0,
+        idleTimeoutMillis: 30000
+    }
+};
+
 let primaryDBPool;
 let secondaryDBPool;
 let thirdDBPool;
 let userDBPool;
+let tp1UsersDBPool;
 
 // ========================================
 // TP1: Local SQL Server
@@ -144,6 +164,25 @@ const GetManh3DBPool = async () => {
 };
 
 // ========================================
+// TP1 Users: Local SQL Server
+// ========================================
+const GetManh1UserDBPool = async () => {
+    if (tp1UsersDBPool && tp1UsersDBPool.connected) {
+        return tp1UsersDBPool;
+    }
+
+    try {
+        tp1UsersDBPool = new sql.ConnectionPool(dbConfigManh1Users);
+        await tp1UsersDBPool.connect();
+        console.log("✅ TP1 Users (Local SQL Server): Kết nối thành công");
+        return tp1UsersDBPool;
+    } catch (err) {
+        console.error("❌ TP1 Users (Local SQL Server): Lỗi kết nối", err.message);
+        throw new Error("Không thể kết nối TP1 Users");
+    }
+};
+
+// ========================================
 // User Database: SomeE SQL Server
 // ========================================
 const GetManh2UserDBPool = async () => {
@@ -191,7 +230,8 @@ const queryPostgres = async (client, query, params = []) => {
 };
 
 module.exports = { 
-    GetManh1DBPool, 
+    GetManh1DBPool,
+    GetManh1UserDBPool,
     GetManh2DBPool, 
     GetManh3DBPool, 
     GetManh2UserDBPool,
