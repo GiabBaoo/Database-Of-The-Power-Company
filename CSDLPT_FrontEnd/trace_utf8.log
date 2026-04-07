@@ -1,0 +1,418 @@
+﻿java : B?t ??u kh?i t?o UI 
+AdminDashboardFrame...
+At line:1 char:1
++ java -cp "bin;lib/*" 
+csdlpt.TestAdmin > 
+trace.log 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo         
+     : NotSpecified: (B?t  
+   ??u kh?i t?...shboard   
+ Frame...:String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+L?i nghiΩm tr?ng khi kh?i 
+t?o:
+java.lang.IllegalStateExcep
+tion: javax.swing.JButton[,
+0,0,0x0,invalid,alignmentX=
+0.0,alignmentY=0.5,border=j
+avax.swing.plaf.BorderUIRes
+ource$CompoundBorderUIResou
+rce@28ac3dc3,flags=296,maxi
+mumSize=,minimumSize=,prefe
+rredSize=,defaultIcon=,disa
+bledIcon=,disabledSelectedI
+con=,margin=javax.swing.pla
+f.InsetsUIResource[top=2,le
+ft=14,bottom=2,right=14],pa
+intBorder=true,paintFocus=t
+rue,pressedIcon=,rolloverEn
+abled=true,rolloverIcon=,ro
+lloverSelectedIcon=,selecte
+dIcon=,text=ThΩm 
+CN,defaultCapable=true] is 
+not attached to a 
+horizontal group
+	at java.desktop/javax.swin
+g.GroupLayout.checkComponen
+ts(GroupLayout.java:1090)
+	at java.desktop/javax.swin
+g.GroupLayout.prepare(Group
+Layout.java:1044)
+	at java.desktop/javax.swin
+g.GroupLayout.minimumLayout
+Size(GroupLayout.java:900)
+	at java.desktop/java.awt.C
+ontainer.minimumSize(Contai
+ner.java:1878)
+	at java.desktop/java.awt.C
+ontainer.getMinimumSize(Con
+tainer.java:1862)
+	at java.desktop/javax.swin
+g.JComponent.getMinimumSize
+(JComponent.java:1822)
+	at java.desktop/java.awt.C
+ardLayout.minimumLayoutSize
+(CardLayout.java:320)
+	at java.desktop/java.awt.C
+ontainer.minimumSize(Contai
+ner.java:1878)
+	at java.desktop/java.awt.C
+ontainer.getMinimumSize(Con
+tainer.java:1862)
+	at java.desktop/javax.swin
+g.JComponent.getMinimumSize
+(JComponent.java:1822)
+	at java.desktop/javax.swin
+g.GroupLayout$ComponentSpri
+ng.calculateNonlinkedMinimu
+mSize(GroupLayout.java:3016
+)
+	at java.desktop/javax.swin
+g.GroupLayout$ComponentSpri
+ng.calculateMinimumSize(Gro
+upLayout.java:2980)
+	at java.desktop/javax.swin
+g.GroupLayout$Spring.getMin
+imumSize(GroupLayout.java:1
+339)
+	at java.desktop/javax.swin
+g.GroupLayout$ComponentSpri
+ng.calculatePreferredSize(G
+roupLayout.java:2987)
+	at java.desktop/javax.swin
+g.GroupLayout$Spring.getPre
+ferredSize(GroupLayout.java
+:1349)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.getSpri
+ngSize(GroupLayout.java:164
+4)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+teSize(GroupLayout.java:163
+3)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+tePreferredSize(GroupLayout
+.java:1608)
+	at java.desktop/javax.swin
+g.GroupLayout$Spring.getPre
+ferredSize(GroupLayout.java
+:1349)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.getSpri
+ngSize(GroupLayout.java:164
+4)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+teSize(GroupLayout.java:162
+8)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+tePreferredSize(GroupLayout
+.java:1608)
+	at java.desktop/javax.swin
+g.GroupLayout$Spring.getPre
+ferredSize(GroupLayout.java
+:1349)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.getSpri
+ngSize(GroupLayout.java:164
+4)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+teSize(GroupLayout.java:162
+8)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+tePreferredSize(GroupLayout
+.java:1608)
+	at java.desktop/javax.swin
+g.GroupLayout$Spring.getPre
+ferredSize(GroupLayout.java
+:1349)
+	at java.desktop/javax.swin
+g.GroupLayout.calculateAuto
+padding(GroupLayout.java:10
+75)
+	at java.desktop/javax.swin
+g.GroupLayout.prepare(Group
+Layout.java:1062)
+	at java.desktop/javax.swin
+g.GroupLayout.preferredLayo
+utSize(GroupLayout.java:882
+)
+	at java.desktop/java.awt.C
+ontainer.preferredSize(Cont
+ainer.java:1826)
+	at java.desktop/java.awt.C
+ontainer.getPreferredSize(C
+ontainer.java:1810)
+	at java.desktop/javax.swin
+g.JComponent.getPreferredSi
+ze(JComponent.java:1736)
+	at java.desktop/javax.swin
+g.JRootPane$RootLayout.pref
+erredLayoutSize(JRootPane.j
+ava:858)
+	at java.desktop/java.awt.C
+ontainer.preferredSize(Cont
+ainer.java:1826)
+	at java.desktop/java.awt.C
+ontainer.getPreferredSize(C
+ontainer.java:1810)
+	at java.desktop/javax.swin
+g.JComponent.getPreferredSi
+ze(JComponent.java:1736)
+	at java.desktop/java.awt.B
+orderLayout.preferredLayout
+Size(BorderLayout.java:724)
+	at java.desktop/java.awt.C
+ontainer.preferredSize(Cont
+ainer.java:1826)
+	at java.desktop/java.awt.C
+ontainer.getPreferredSize(C
+ontainer.java:1810)
+	at java.desktop/java.awt.W
+indow.pack(Window.java:831)
+	at csdlpt.AdminDashboardFr
+ame.initComponents(AdminDas
+hboardFrame.java:639)
+	at csdlpt.AdminDashboardFr
+ame.<init>(AdminDashboardFr
+ame.java:27)
+	at csdlpt.TestAdmin.main(T
+estAdmin.java:7)
+Exception in thread 
+"AWT-EventQueue-0" java.lan
+g.IllegalStateException: ja
+vax.swing.JButton[,0,0,0x0,
+invalid,alignmentX=0.0,alig
+nmentY=0.5,border=javax.swi
+ng.plaf.BorderUIResource$Co
+mpoundBorderUIResource@28ac
+3dc3,flags=296,maximumSize=
+,minimumSize=,preferredSize
+=,defaultIcon=,disabledIcon
+=,disabledSelectedIcon=,mar
+gin=javax.swing.plaf.Insets
+UIResource[top=2,left=14,bo
+ttom=2,right=14],paintBorde
+r=true,paintFocus=true,pres
+sedIcon=,rolloverEnabled=tr
+ue,rolloverIcon=,rolloverSe
+lectedIcon=,selectedIcon=,t
+ext=ThΩm 
+CN,defaultCapable=true] is 
+not attached to a 
+horizontal group
+	at java.desktop/javax.swin
+g.GroupLayout.checkComponen
+ts(GroupLayout.java:1090)
+	at java.desktop/javax.swin
+g.GroupLayout.prepare(Group
+Layout.java:1044)
+	at java.desktop/javax.swin
+g.GroupLayout.minimumLayout
+Size(GroupLayout.java:900)
+	at java.desktop/java.awt.C
+ontainer.minimumSize(Contai
+ner.java:1878)
+	at java.desktop/java.awt.C
+ontainer.getMinimumSize(Con
+tainer.java:1862)
+	at java.desktop/javax.swin
+g.JComponent.getMinimumSize
+(JComponent.java:1822)
+	at java.desktop/java.awt.C
+ardLayout.minimumLayoutSize
+(CardLayout.java:320)
+	at java.desktop/java.awt.C
+ontainer.minimumSize(Contai
+ner.java:1878)
+	at java.desktop/java.awt.C
+ontainer.getMinimumSize(Con
+tainer.java:1862)
+	at java.desktop/javax.swin
+g.JComponent.getMinimumSize
+(JComponent.java:1822)
+	at java.desktop/javax.swin
+g.GroupLayout$ComponentSpri
+ng.calculateNonlinkedMinimu
+mSize(GroupLayout.java:3016
+)
+	at java.desktop/javax.swin
+g.GroupLayout$ComponentSpri
+ng.calculateMinimumSize(Gro
+upLayout.java:2980)
+	at java.desktop/javax.swin
+g.GroupLayout$Spring.getMin
+imumSize(GroupLayout.java:1
+339)
+	at java.desktop/javax.swin
+g.GroupLayout$ComponentSpri
+ng.calculatePreferredSize(G
+roupLayout.java:2987)
+	at java.desktop/javax.swin
+g.GroupLayout$Spring.getPre
+ferredSize(GroupLayout.java
+:1349)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.getSpri
+ngSize(GroupLayout.java:164
+4)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+teSize(GroupLayout.java:163
+3)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+tePreferredSize(GroupLayout
+.java:1608)
+	at java.desktop/javax.swin
+g.GroupLayout$Spring.getPre
+ferredSize(GroupLayout.java
+:1349)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.getSpri
+ngSize(GroupLayout.java:164
+4)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+teSize(GroupLayout.java:162
+8)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+tePreferredSize(GroupLayout
+.java:1608)
+	at java.desktop/javax.swin
+g.GroupLayout$Spring.getPre
+ferredSize(GroupLayout.java
+:1349)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.getSpri
+ngSize(GroupLayout.java:164
+4)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+teSize(GroupLayout.java:162
+8)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.calcula
+tePreferredSize(GroupLayout
+.java:1608)
+	at java.desktop/javax.swin
+g.GroupLayout$Spring.getPre
+ferredSize(GroupLayout.java
+:1349)
+	at java.desktop/javax.swin
+g.GroupLayout$SequentialGro
+up.setValidSize(GroupLayout
+.java:2023)
+	at java.desktop/javax.swin
+g.GroupLayout$Group.setSize
+(GroupLayout.java:1593)
+	at java.desktop/javax.swin
+g.GroupLayout.calculateAuto
+padding(GroupLayout.java:10
+83)
+	at java.desktop/javax.swin
+g.GroupLayout.layoutContain
+er(GroupLayout.java:922)
+	at java.desktop/java.awt.C
+ontainer.layout(Container.j
+ava:1541)
+	at java.desktop/java.awt.C
+ontainer.doLayout(Container
+.java:1530)
+	at java.desktop/java.awt.C
+ontainer.validateTree(Conta
+iner.java:1725)
+	at java.desktop/java.awt.C
+ontainer.validateTree(Conta
+iner.java:1734)
+	at java.desktop/java.awt.C
+ontainer.validateTree(Conta
+iner.java:1734)
+	at java.desktop/java.awt.C
+ontainer.validateTree(Conta
+iner.java:1734)
+	at java.desktop/java.awt.C
+ontainer.validate(Container
+.java:1660)
+	at java.desktop/java.awt.W
+indow.dispatchEventImpl(Win
+dow.java:2778)
+	at java.desktop/java.awt.C
+omponent.dispatchEvent(Comp
+onent.java:4828)
+	at java.desktop/java.awt.E
+ventQueue.dispatchEventImpl
+(EventQueue.java:775)
+	at java.desktop/java.awt.E
+ventQueue$4.run(EventQueue.
+java:720)
+	at java.desktop/java.awt.E
+ventQueue$4.run(EventQueue.
+java:714)
+	at java.base/java.security
+.AccessController.doPrivile
+ged(AccessController.java:4
+00)
+	at java.base/java.security
+.ProtectionDomain$JavaSecur
+ityAccessImpl.doIntersectio
+nPrivilege(ProtectionDomain
+.java:87)
+	at java.base/java.security
+.ProtectionDomain$JavaSecur
+ityAccessImpl.doIntersectio
+nPrivilege(ProtectionDomain
+.java:98)
+	at java.desktop/java.awt.E
+ventQueue$5.run(EventQueue.
+java:747)
+	at java.desktop/java.awt.E
+ventQueue$5.run(EventQueue.
+java:745)
+	at java.base/java.security
+.AccessController.doPrivile
+ged(AccessController.java:4
+00)
+	at java.base/java.security
+.ProtectionDomain$JavaSecur
+ityAccessImpl.doIntersectio
+nPrivilege(ProtectionDomain
+.java:87)
+	at java.desktop/java.awt.E
+ventQueue.dispatchEvent(Eve
+ntQueue.java:744)
+	at java.desktop/java.awt.E
+ventDispatchThread.pumpOneE
+ventForFilters(EventDispatc
+hThread.java:203)
+	at java.desktop/java.awt.E
+ventDispatchThread.pumpEven
+tsForFilter(EventDispatchTh
+read.java:124)
+	at java.desktop/java.awt.E
+ventDispatchThread.pumpEven
+tsForHierarchy(EventDispatc
+hThread.java:113)
+	at java.desktop/java.awt.E
+ventDispatchThread.pumpEven
+ts(EventDispatchThread.java
+:109)
+	at java.desktop/java.awt.E
+ventDispatchThread.pumpEven
+ts(EventDispatchThread.java
+:101)
+	at java.desktop/java.awt.E
+ventDispatchThread.run(Even
+tDispatchThread.java:90)

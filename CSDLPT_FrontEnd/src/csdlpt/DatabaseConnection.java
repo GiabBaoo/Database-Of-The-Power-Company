@@ -11,9 +11,9 @@ import java.sql.*;
 public class DatabaseConnection {
 
     // TP1: Local SQL Server
-    private static final String TP1_URL = "jdbc:sqlserver://192.168.56.1:1433;databaseName=DienLuc;encrypt=false";
+    private static final String TP1_URL = "jdbc:sqlserver://192.168.56.1:1433;databaseName=DienLuc;encrypt=false;trustServerCertificate=true";
     private static final String TP1_USER = "sa";
-    private static final String TP1_PASS = "Baospaki1234@";
+    private static final String TP1_PASS = "123456";
 
     // TP2: Cloud SQL Server (SomeE)
     private static final String TP2_URL = "jdbc:sqlserver://csdlpt_lab2.mssql.somee.com:1433;databaseName=csdlpt_lab2;encrypt=true;trustServerCertificate=true";

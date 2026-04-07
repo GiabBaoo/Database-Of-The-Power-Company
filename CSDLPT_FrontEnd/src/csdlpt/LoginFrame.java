@@ -31,7 +31,6 @@ public class LoginFrame extends javax.swing.JFrame {
         btnLogin = new javax.swing.JButton();
         txtAccount = new javax.swing.JTextField();
         txtPass = new javax.swing.JPasswordField();
-        btnRegister = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -52,8 +51,6 @@ public class LoginFrame extends javax.swing.JFrame {
             }
         });
 
-        btnRegister.setText("Đăng Ký");
-
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
@@ -65,9 +62,7 @@ public class LoginFrame extends javax.swing.JFrame {
                         .addComponent(jLabel1))
                     .addGroup(layout.createSequentialGroup()
                         .addGap(135, 135, 135)
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                            .addComponent(btnRegister, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(btnLogin, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE))))
+                        .addComponent(btnLogin, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
                 .addGap(0, 100, Short.MAX_VALUE)
@@ -85,10 +80,9 @@ public class LoginFrame extends javax.swing.JFrame {
                 .addGap(24, 24, 24)
                 .addComponent(txtPass, javax.swing.GroupLayout.PREFERRED_SIZE, 37, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addGap(18, 18, 18)
                 .addComponent(btnLogin, javax.swing.GroupLayout.PREFERRED_SIZE, 40, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addComponent(btnRegister)
-                .addGap(33, 33, 33))
+                .addGap(40, 40, 40))
         );
 
         pack();
@@ -110,35 +104,57 @@ public class LoginFrame extends javax.swing.JFrame {
             return;
         }
         
-        // Gọi LoginService để xác thực
-        Map<String, String> user = LoginService.login(username, password);
-        
-        if (user != null) {
-            System.out.println("✅ Đăng nhập thành công: " + username);
-            
-            // Lưu thông tin vào Preferences
-            Preferences prefs = Preferences.userRoot().node("UserInfo");
-            prefs.put("maNV", user.get("maNV"));
-            prefs.put("tenNV", user.get("tenNV"));
-            prefs.put("maCN", user.get("maCN"));
-            
-            // Kiểm tra role để mở frame phù hợp
-            if (LoginService.isAdmin(user.get("maNV"))) {
-                new AdminDashboardFrame().setVisible(true);
-            } else {
-                new EmployeeAppFrame().setVisible(true);
+        // Cập nhật giao diện: Vô hiệu hóa nút và thông báo đang tải
+        btnLogin.setEnabled(false);
+        String originalText = btnLogin.getText();
+        btnLogin.setText("Đang đăng nhập...");
+
+        // Chạy đăng nhập trên luồng riêng để không làm treo giao diện chính (EDT)
+        new Thread(() -> {
+            try {
+                // Gọi LoginService để xác thực song song
+                Map<String, String> user = LoginService.login(username, password);
+
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    if (user != null) {
+                        System.out.println("✅ Đăng nhập thành công: " + username);
+                        
+                        // Lưu thông tin vào Preferences
+                        Preferences prefs = Preferences.userRoot().node("UserInfo");
+                        prefs.put("maNV", user.get("maNV") != null ? user.get("maNV") : "");
+                        prefs.put("tenNV", user.get("tenNV") != null ? user.get("tenNV") : "");
+                        prefs.put("maCN", user.get("maCN") != null ? user.get("maCN") : "");
+                        
+                        // Kiểm tra role trực tiếp từ Map (không query lại database)
+                        if (LoginService.checkIsAdmin(user)) {
+                            new AdminDashboardFrame().setVisible(true);
+                        } else {
+                            new EmployeeAppFrame().setVisible(true);
+                        }
+                        
+                        // Đóng LoginFrame
+                        this.dispose();
+                    } else {
+                        System.out.println("❌ Đăng nhập thất bại");
+                        javax.swing.JOptionPane.showMessageDialog(this, 
+                            "Sai tài khoản hoặc mật khẩu!", 
+                            "Đăng nhập thất bại", 
+                            javax.swing.JOptionPane.ERROR_MESSAGE);
+                        txtPass.setText("");
+                        
+                        // Bật lại nút nếu đăng nhập lỗi
+                        btnLogin.setEnabled(true);
+                        btnLogin.setText(originalText);
+                    }
+                });
+            } catch (Exception e) {
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    javax.swing.JOptionPane.showMessageDialog(this, "Lỗi: " + e.getMessage());
+                    btnLogin.setEnabled(true);
+                    btnLogin.setText(originalText);
+                });
             }
-            
-            // Đóng LoginFrame
-            this.dispose();
-        } else {
-            System.out.println("❌ Đăng nhập thất bại");
-            javax.swing.JOptionPane.showMessageDialog(this, 
-                "Sai tài khoản hoặc mật khẩu!", 
-                "Đăng nhập thất bại", 
-                javax.swing.JOptionPane.ERROR_MESSAGE);
-            txtPass.setText("");
-        }
+        }).start();
     }                                        
 
     /**
@@ -178,7 +194,6 @@ public class LoginFrame extends javax.swing.JFrame {
 
     // Variables declaration - do not modify                     
     private javax.swing.JButton btnLogin;
-    private javax.swing.JButton btnRegister;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JTextField txtAccount;
     private javax.swing.JPasswordField txtPass;

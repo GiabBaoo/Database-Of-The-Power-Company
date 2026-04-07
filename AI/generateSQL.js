@@ -101,12 +101,12 @@ async function runAI() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: "qwen2.5-coder:7b", // Đảm bảo bạn đã pull model này
+                model: "qwen2.5-coder", // Khớp với model qwen2.5-coder bạn đang có
                 prompt: prompt,
                 stream: false,
                 options: {
-                    temperature: 0.2, // Giữ sáng tạo thấp để code đúng cú pháp
-                    num_ctx: 16384    // Context window đủ lớn
+                    temperature: 0.2,
+                    num_ctx: 16384
                 }
             }),
         });

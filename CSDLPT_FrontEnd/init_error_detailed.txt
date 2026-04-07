@@ -1,0 +1,19 @@
+﻿? B?T ??U QU┴ TR╠NH KH?I T?O DATABASE...
+? Loaded SQL Server Driver
+? Loaded PostgreSQL Driver
+? K?t n?i TP1 thαnh c⌠ng
+
+--- ?ang c?u h∞nh SERVER 1 (H└ N?I) ---
+? SERVER 1 (H└ N?I): Th?c thi script thαnh c⌠ng!
+? K?t n?i TP2 thαnh c⌠ng
+
+--- ?ang c?u h∞nh SERVER 2 (?└ N?NG) ---
+? K?t n?i TP3 thαnh c⌠ng
+
+--- ?ang c?u h∞nh SERVER 3 (H? CH═ MINH) ---
+? SERVER 3 (H? CH═ MINH): Th?c thi script thαnh c⌠ng!
+
+? QU┴ TR╠NH KH?I T?O HO└N T?T!
+? ?≤ng k?t n?i TP1
+? ?≤ng k?t n?i TP2
+? ?≤ng k?t n?i TP3
