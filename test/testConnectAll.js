@@ -3,7 +3,7 @@
  * TEST KẾT NỐI 3 DATABASE
  * Chạy: node test/testConnectAll.js
  */
-
+console.log("TP5 URL:", process.env.DB_Server5_URL);
 require('dotenv').config();
 const db = require('../src/Config/DBConnection');
 

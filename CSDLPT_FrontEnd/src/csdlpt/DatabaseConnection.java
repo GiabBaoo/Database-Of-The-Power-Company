@@ -11,7 +11,7 @@ import java.sql.*;
 public class DatabaseConnection {
 
     // TP1: Local SQL Server
-    private static final String TP1_URL = "jdbc:sqlserver://192.168.56.1:1433;databaseName=DienLuc;encrypt=false";
+    private static final String TP1_URL = "jdbc:sqlserver://localhost:1433;databaseName=DienLuc_TP1;encrypt=false;loginTimeout=5";
     private static final String TP1_USER = "sa";
     private static final String TP1_PASS = "Baospaki1234@";
 

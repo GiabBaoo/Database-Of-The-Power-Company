@@ -1,4 +1,7 @@
 require('dotenv').config();
+console.log("USER:", process.env.DB_User);
+console.log("PASS:", process.env.DB_Password);
+console.log("SERVER:", process.env.DB_Server1);require('dotenv').config();
 const sql = require('mssql');
 
 async function testTP1() {
