@@ -1,0 +1,31 @@
+﻿? KI?M TRA D? LI?U SAU KHI KH?I T?O ?
+
+? Loaded SQL Server Driver
+? Loaded PostgreSQL Driver
+? K?t n?i TP1 thαnh c⌠ng
+--- SERVER 1 (H└ N?I) ---
+  ò chinhanh: 1 b?n ghi
+  ò nhanvien: 4 b?n ghi
+  ò khachhang: 2 b?n ghi
+  ò hopdong: 2 b?n ghi
+  ò hoadon: 2 b?n ghi
+
+? K?t n?i TP2 thαnh c⌠ng
+--- SERVER 2 (?└ N?NG) ---
+  ò chinhanh: 1 b?n ghi
+  ò nhanvien: 5 b?n ghi
+  ò khachhang: 2 b?n ghi
+  ò hopdong: 2 b?n ghi
+  ò hoadon: 1 b?n ghi
+
+? K?t n?i TP3 thαnh c⌠ng
+--- SERVER 3 (H? CH═ MINH) ---
+  ò chinhanh: 1 b?n ghi
+  ò nhanvien: 4 b?n ghi
+  ò khachhang: 2 b?n ghi
+  ò hopdong: 2 b?n ghi
+  ò hoadon: 1 b?n ghi
+
+? ?≤ng k?t n?i TP1
+? ?≤ng k?t n?i TP2
+? ?≤ng k?t n?i TP3

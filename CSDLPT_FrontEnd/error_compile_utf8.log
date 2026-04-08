@@ -1,0 +1,33 @@
+﻿javac : src\csdlpt\AdminDas
+hboardFrame.java:267: 
+error: variable headerFont 
+is already defined in 
+method 
+initCustomComponents()
+At line:1 char:1
++ javac -d bin -cp "lib/*" 
+src/csdlpt/*.java 2> 
+error_compile.log
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (src  
+  \csdlpt\Admi...tomComp   
+ onents():String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+        java.awt.Font 
+headerFont = new 
+java.awt.Font("Segoe UI", 
+java.awt.Font.BOLD, 13);
+                      ^
+Note: src\csdlpt\AuthServic
+e.java uses or overrides a 
+deprecated API.
+Note: Recompile with 
+-Xlint:deprecation for 
+details.
+1 error

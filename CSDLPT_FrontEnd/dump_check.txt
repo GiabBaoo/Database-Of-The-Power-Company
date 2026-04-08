@@ -1,0 +1,10 @@
+﻿? DUMP D? LI?U NH┬N VI╩N TR╩N SERVER 2...
+? Loaded SQL Server Driver
+? Loaded PostgreSQL Driver
+? K?t n?i TP2 thαnh c⌠ng
+  ò admin | H? Th?ng - Admin T?ng | admin | admin
+  ò admin2 | Ng??i qu?n tr? - ?α N?ng | admin | admin
+  ò NV201 | Ph?m V?n D?ng | 123 | user
+  ò NV202 | Hoαng Th? Giang | 123 | user
+  ò NV203 | V? V?n H?i | 123 | user
+? ?≤ng k?t n?i TP2

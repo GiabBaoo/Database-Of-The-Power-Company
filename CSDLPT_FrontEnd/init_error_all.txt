@@ -1,0 +1,102 @@
+﻿? B?T ??U QU┴ TR╠NH KH?I T?O DATABASE...
+? Loaded SQL Server Driver
+? Loaded PostgreSQL Driver
+? K?t n?i TP1 thαnh c⌠ng
+
+--- ?ang c?u h∞nh SERVER 1 (H└ N?I) ---
+? SERVER 1 (H└ N?I): Th?c thi script thαnh c⌠ng!
+? K?t n?i TP2 thαnh c⌠ng
+
+--- ?ang c?u h∞nh SERVER 2 (?└ N?NG) ---
+java : ? L?i th?c thi SQL 
+t?i SERVER 2 (?└ N?NG): 
+The DELETE statement 
+conflicted with the 
+REFERENCE constraint "FK__U
+sers__MaNV__6754599E". The 
+conflict occurred in 
+database "csdlpt_lab2", 
+table "dbo.Users", column 
+'MaNV'.
+At line:1 char:1
++ java -cp "bin;lib/*" 
+csdlpt.DatabaseInitializer 
+*>&1 | Out-File -Enco ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (? L  
+  ?i th?c thi ... column   
+  'MaNV'.:String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+   Chi ti?t l?i: 23000 - 
+Code: 547
+com.microsoft.sqlserver.jdb
+c.SQLServerException: The 
+DELETE statement 
+conflicted with the 
+REFERENCE constraint "FK__U
+sers__MaNV__6754599E". The 
+conflict occurred in 
+database "csdlpt_lab2", 
+table "dbo.Users", column 
+'MaNV'.
+	at com.microsoft.sqlserver
+.jdbc.SQLServerException.ma
+keFromDatabaseError(SQLServ
+erException.java:265)
+	at com.microsoft.sqlserver
+.jdbc.TDSTokenHandler.onEOF
+(tdsparser.java:305)
+	at com.microsoft.sqlserver
+.jdbc.TDSParser.parse(tdspa
+rser.java:138)
+	at com.microsoft.sqlserver
+.jdbc.SQLServerStatement.ge
+tNextResult(SQLServerStatem
+ent.java:1691)
+	at com.microsoft.sqlserver
+.jdbc.SQLServerStatement.do
+ExecuteStatement(SQLServerS
+tatement.java:920)
+	at com.microsoft.sqlserver
+.jdbc.SQLServerStatement$St
+mtExecCmd.doExecute(SQLServ
+erStatement.java:814)
+	at com.microsoft.sqlserver
+.jdbc.TDSCommand.execute(IO
+Buffer.java:7685)
+	at com.microsoft.sqlserver
+.jdbc.SQLServerConnection.e
+xecuteCommand(SQLServerConn
+ection.java:4048)
+	at com.microsoft.sqlserver
+.jdbc.SQLServerStatement.ex
+ecuteCommand(SQLServerState
+ment.java:272)
+	at com.microsoft.sqlserver
+.jdbc.SQLServerStatement.ex
+ecuteStatement(SQLServerSta
+tement.java:246)
+	at com.microsoft.sqlserver
+.jdbc.SQLServerStatement.ex
+ecute(SQLServerStatement.ja
+va:787)
+	at csdlpt.DatabaseInitiali
+zer.runScriptOnConnection(D
+atabaseInitializer.java:61)
+	at csdlpt.DatabaseInitiali
+zer.main(DatabaseInitialize
+r.java:22)
+? K?t n?i TP3 thαnh c⌠ng
+
+--- ?ang c?u h∞nh SERVER 3 (H? CH═ MINH) ---
+? SERVER 3 (H? CH═ MINH): Th?c thi script thαnh c⌠ng!
+
+? QU┴ TR╠NH KH?I T?O HO└N T?T!
+? ?≤ng k?t n?i TP1
+? ?≤ng k?t n?i TP2
+? ?≤ng k?t n?i TP3

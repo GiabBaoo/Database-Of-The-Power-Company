@@ -1,0 +1,20 @@
+{
+    "sqltools.connections": [
+        {
+            "pgOptions": {
+                "ssl": {
+                    "rejectUnauthorized": false
+                }
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "aws-1-ap-northeast-1.pooler.supabase.com",
+            "port": 6543,
+            "driver": "PostgreSQL",
+            "name": "TP3_Supabase",
+            "database": "postgres",
+            "username": "postgres.zkfqpkgfrnvjyqezhxzk",
+            "password": "Baospaki1234@"
+        }
+    ]
+}

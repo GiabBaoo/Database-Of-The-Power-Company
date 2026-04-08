@@ -1,0 +1,8 @@
+﻿? LI?T K╩ C?T C?A B?NG NHANVIEN TR╩N SERVER 1...
+? Loaded SQL Server Driver
+? Loaded PostgreSQL Driver
+? K?t n?i TP1 thαnh c⌠ng
+  ò maNV (varchar)
+  ò hoten (nvarchar)
+  ò maCN (varchar)
+? ?≤ng k?t n?i TP1
