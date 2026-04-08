@@ -119,6 +119,9 @@ public class LoginFrame extends javax.swing.JFrame {
                     if (user != null) {
                         System.out.println("✅ Đăng nhập thành công: " + username);
                         
+                        // Lưu thông tin vào SessionManager
+                        SessionManager.setCurrentUser(user);
+                        
                         // Lưu thông tin vào Preferences
                         Preferences prefs = Preferences.userRoot().node("UserInfo");
                         prefs.put("maNV", user.get("maNV") != null ? user.get("maNV") : "");

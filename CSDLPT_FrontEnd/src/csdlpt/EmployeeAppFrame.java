@@ -22,7 +22,7 @@ public class EmployeeAppFrame extends javax.swing.JFrame {
         String maNV = prefs.get("maNV", null);
 
         if (maNV != null) {
-            Map<String, String> staff = StaffDAO.getStaffFullInfo(maNV);
+            Map<String, String> staff = StaffDAO.getStaffByUsername(maNV);
             if (staff != null && !staff.isEmpty()) {
                 // Lưu thông tin nhân viên (lấy từ cơ sở dữ liệu)
                 prefs.put("maNV", staff.get("maNV"));

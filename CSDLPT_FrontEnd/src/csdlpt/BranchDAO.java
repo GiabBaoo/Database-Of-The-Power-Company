@@ -8,18 +8,44 @@ import java.util.Map;
 
 /**
  * DAO cho bảng Chi Nhánh
+ * Hỗ trợ: MSSQL (TP1, TP2, SV4) và PostgreSQL (TP3, SV5)
  */
 public class BranchDAO {
 
+    private static final String SQL_SELECT_MSSQL = "SELECT maCN, tenCN, thanhpho FROM chinhanh";
+    private static final String SQL_SELECT_POSTGRES = "SELECT macn, tencn, thanhpho FROM chinhanh";
+
+    private static final String SQL_INSERT_MSSQL = "INSERT INTO chinhanh (maCN, tenCN, thanhpho) VALUES (?, ?, ?)";
+    private static final String SQL_INSERT_POSTGRES = "INSERT INTO chinhanh (macn, tencn, thanhpho) VALUES (?, ?, ?)";
+
+    private static final String SQL_UPDATE_MSSQL = "UPDATE chinhanh SET tenCN = ?, thanhpho = ? WHERE maCN = ?";
+    private static final String SQL_UPDATE_POSTGRES = "UPDATE chinhanh SET tencn = ?, thanhpho = ? WHERE macn = ?";
+
+    private static final String SQL_DELETE_MSSQL = "DELETE FROM chinhanh WHERE maCN = ?";
+    private static final String SQL_DELETE_POSTGRES = "DELETE FROM chinhanh WHERE macn = ?";
+
+    private static final String SQL_COUNT = "SELECT COUNT(*) FROM chinhanh";
+
     /**
-     * Lấy danh sách tất cả chi nhánh từ cơ sở dữ liệu phân tán theo bộ lọc site
-     * @param siteId 0: Tất cả, 1: TP 1, 2: TP 2, 3: TP 3
+     * Đọc một chi nhánh từ ResultSet (tự động xử lý tên cột theo loại DB)
      */
+    private static Map<String, String> readBranch(ResultSet rs, boolean isPostgres, String site) throws SQLException {
+        Map<String, String> branch = new HashMap<>();
+        if (isPostgres) {
+            branch.put("maCN", rs.getString("macn"));
+            branch.put("tenCN", rs.getString("tencn"));
+            branch.put("thanhpho", rs.getString("thanhpho"));
+        } else {
+            branch.put("maCN", rs.getString("maCN"));
+            branch.put("tenCN", rs.getString("tenCN"));
+            branch.put("thanhpho", rs.getString("thanhpho"));
+        }
+        branch.put("site", site);
+        return branch;
+    }
+
     public static List<Map<String, String>> getAllBranches(int siteId) {
         List<Map<String, String>> branches = new ArrayList<>();
-        String sql = "SELECT maCN, tenCN, thanhpho FROM chinhanh";
-
-        String[] siteNames = {"TP 1", "TP 2", "TP 3"};
         Connection[] allConnections = {
             DatabaseConnection.getTP1Connection(),
             DatabaseConnection.getTP2Connection(),
@@ -27,112 +53,73 @@ public class BranchDAO {
         };
 
         for (int i = 0; i < allConnections.length; i++) {
-            // Nếu siteId > 0, chỉ lấy site tương ứng (i + 1 == siteId)
             if (siteId > 0 && (i + 1) != siteId) continue;
-            
             Connection conn = allConnections[i];
             if (conn == null) continue;
 
+            String siteName = DatabaseConnection.getSiteName(i);
+            boolean pg = DatabaseConnection.isPostgresConnection(conn);
+            String sql = pg ? SQL_SELECT_POSTGRES : SQL_SELECT_MSSQL;
+
             try (Statement stmt = conn.createStatement();
                  ResultSet rs = stmt.executeQuery(sql)) {
-
                 while (rs.next()) {
-                    Map<String, String> branch = new HashMap<>();
-                    branch.put("maCN", rs.getString("maCN"));
-                    branch.put("tenCN", rs.getString("tenCN"));
-                    branch.put("thanhpho", rs.getString("thanhpho"));
-                    branch.put("site", siteNames[i]);
-                    branches.add(branch);
+                    branches.add(readBranch(rs, pg, siteName));
                 }
             } catch (SQLException e) {
-                System.err.println("❌ Lỗi lấy danh sách chi nhánh tại " + siteNames[i] + ": " + e.getMessage());
+                System.err.println("❌ Lỗi lấy danh sách chi nhánh tại " + siteName + ": " + e.getMessage());
             }
         }
-        System.out.println("✅ Tổng số chi nhánh lấy được (" + (siteId==0?"Tất cả":siteNames[siteId-1]) + "): " + branches.size());
         return branches;
     }
     
-    // Ghi đè phương thức cũ để tránh lỗi biên dịch ở các file khác
-    public static List<Map<String, String>> getAllBranches() {
-        return getAllBranches(0);
-    }
+    public static List<Map<String, String>> getAllBranches() { return getAllBranches(0); }
 
-    /**
-     * Lấy tổng số lượng chi nhánh (Sử dụng COUNT(*) để tối ưu hiệu hiệu năng)
-     */
     public static int getTotalBranchesCount(int siteId) {
         int total = 0;
-        String sql = "SELECT COUNT(*) FROM chinhanh";
-        
         Connection[] connections = {
             DatabaseConnection.getTP1Connection(),
             DatabaseConnection.getTP2Connection(),
             DatabaseConnection.getTP3Connection()
         };
-
         for (int i = 0; i < connections.length; i++) {
             if (siteId > 0 && (i + 1) != siteId) continue;
-            
             Connection conn = connections[i];
             if (conn == null) continue;
-
             try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery(sql)) {
-                if (rs.next()) {
-                    total += rs.getInt(1);
-                }
-            } catch (SQLException e) {
-                System.err.println("❌ Lỗi đếm chi nhánh tại TP " + (i + 1));
-            }
+                 ResultSet rs = stmt.executeQuery(SQL_COUNT)) {
+                if (rs.next()) total += rs.getInt(1);
+            } catch (SQLException e) { /* ignore */ }
         }
         return total;
     }
 
-    /**
-     * Lấy thông tin chi nhánh theo mã
-     */
     public static Map<String, String> getBranchById(String maCN) {
-        Map<String, String> branch = new HashMap<>();
-        String sql = "SELECT maCN, tenCN FROM chinhanh WHERE maCN = ?";
+        Connection[] connections = {
+                DatabaseConnection.getTP1Connection(),
+                DatabaseConnection.getTP2Connection(),
+                DatabaseConnection.getTP3Connection()
+        };
+        for (int i = 0; i < connections.length; i++) {
+            Connection conn = connections[i];
+            if (conn == null) continue;
 
-        try {
-            Connection conn = DatabaseConnection.getTP1Connection();
-            if (conn == null) {
-                System.err.println("❌ Không kết nối được TP1");
-                return branch;
-            }
-            
-            PreparedStatement pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, maCN);
-            ResultSet rs = pstmt.executeQuery();
+            boolean pg = DatabaseConnection.isPostgresConnection(conn);
+            String siteName = DatabaseConnection.getSiteName(i);
+            String sql = pg ? SQL_SELECT_POSTGRES + " WHERE macn = ?" : SQL_SELECT_MSSQL + " WHERE maCN = ?";
 
-            if (rs.next()) {
-                branch.put("maCN", rs.getString("maCN"));
-                branch.put("tenCN", rs.getString("tenCN"));
-                System.out.println("✅ Lấy chi nhánh: " + maCN);
-            } else {
-                System.out.println("⚠️ Không tìm thấy chi nhánh: " + maCN);
-            }
-
-            rs.close();
-            pstmt.close();
-
-        } catch (SQLException e) {
-            System.err.println("❌ Lỗi lấy chi nhánh: " + e.getMessage());
-            e.printStackTrace();
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setString(1, maCN);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    if (rs.next()) return readBranch(rs, pg, siteName);
+                }
+            } catch (SQLException e) { /* continue */ }
         }
-
-        return branch;
+        return new HashMap<>();
     }
 
-    /**
-     * Tìm chi nhánh theo tên (Hỗ trợ phân tán)
-     */
     public static List<Map<String, String>> searchBranches(int siteId, String keyword) {
         List<Map<String, String>> branches = new ArrayList<>();
-        String sql = "SELECT maCN, tenCN, thanhpho FROM chinhanh WHERE tenCN LIKE ? OR maCN LIKE ?";
-
-        String[] siteNames = {"TP 1", "TP 2", "TP 3"};
         Connection[] allConnections = {
             DatabaseConnection.getTP1Connection(),
             DatabaseConnection.getTP2Connection(),
@@ -141,89 +128,77 @@ public class BranchDAO {
 
         for (int i = 0; i < allConnections.length; i++) {
             if (siteId > 0 && (i + 1) != siteId) continue;
-            
             Connection conn = allConnections[i];
             if (conn == null) continue;
 
-            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-                pstmt.setString(1, "%" + keyword + "%");
-                pstmt.setString(2, "%" + keyword + "%");
-                ResultSet rs = pstmt.executeQuery();
+            String siteName = DatabaseConnection.getSiteName(i);
+            boolean pg = DatabaseConnection.isPostgresConnection(conn);
+            String sql = pg ? SQL_SELECT_POSTGRES + " WHERE tencn ILIKE ? OR macn ILIKE ?" 
+                            : SQL_SELECT_MSSQL + " WHERE tenCN LIKE ? OR maCN LIKE ?";
 
-                while (rs.next()) {
-                    Map<String, String> branch = new HashMap<>();
-                    branch.put("maCN", rs.getString("maCN"));
-                    branch.put("tenCN", rs.getString("tenCN"));
-                    branch.put("thanhpho", rs.getString("thanhpho"));
-                    branch.put("site", siteNames[i]);
-                    branches.add(branch);
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                String pattern = "%" + keyword + "%";
+                pstmt.setString(1, pattern);
+                pstmt.setString(2, pattern);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    while (rs.next()) {
+                        branches.add(readBranch(rs, pg, siteName));
+                    }
                 }
             } catch (SQLException e) {
-                System.err.println("❌ Lỗi tìm kiếm chi nhánh tại " + siteNames[i] + ": " + e.getMessage());
+                System.err.println("❌ Lỗi tìm kiếm chi nhánh tại " + siteName + ": " + e.getMessage());
             }
         }
         return branches;
     }
 
-    // Keepold version for compatibility if needed elsewhere
-    public static List<Map<String, String>> searchBranches(String keyword) {
-        return searchBranches(0, keyword);
-    }
-
-    /**
-     * Thêm chi nhánh mới
-     */
     public static boolean addBranch(String maCN, String tenCN, String thanhpho) {
-        String sql = "INSERT INTO chinhanh (maCN, tenCN, thanhpho) VALUES (?, ?, ?)";
+        // Mặc định thêm vào TP1 (thường Chi Nhánh được replicate hoặc quản lý tại trung tâm)
+        Connection conn = DatabaseConnection.getTP1Connection();
+        boolean usingBackup = DatabaseConnection.isTP1UsingBackup();
+        
+        if (conn == null) {
+            conn = DatabaseConnection.getTP2Connection(); // Fallback sang site khác nếu TP1 sập
+            usingBackup = DatabaseConnection.isTP2UsingBackup();
+        }
+        if (conn == null) return false;
 
-        try {
-            Connection conn = DatabaseConnection.getTP1Connection();
-            if (conn == null) {
-                System.err.println("❌ Không kết nối được TP1, thử dùng TP2");
-                conn = DatabaseConnection.getUserDbConnection();
-            }
-            
-            if (conn == null) return false;
-            
-            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-                pstmt.setString(1, maCN);
-                pstmt.setString(2, tenCN);
-                pstmt.setString(3, thanhpho);
-                int rows = pstmt.executeUpdate();
+        boolean pg = DatabaseConnection.isPostgresConnection(conn);
+        String sql = pg ? SQL_INSERT_POSTGRES : SQL_INSERT_MSSQL;
 
-                if (rows > 0) {
-                    System.out.println("✅ Thêm chi nhánh: " + tenCN);
-                    
-                    // Tự động ghi log cho AI
-                    Map<String, Object> logData = new HashMap<>();
-                    logData.put("maCN", maCN);
-                    logData.put("tenCN", tenCN);
-                    logData.put("thanhpho", thanhpho);
-                    JsonLogger.log("TP1", "insert", "chinhanh", logData);
-                    
-                    return true;
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, maCN);
+            pstmt.setString(2, tenCN);
+            pstmt.setString(3, thanhpho);
+            int rows = pstmt.executeUpdate();
+
+            if (rows > 0) {
+                if (usingBackup) {
+                    String jsonData = BackupSyncService.buildJsonData("maCN", maCN, "tenCN", tenCN, "thanhpho", thanhpho);
+                    BackupSyncService.logToChangelog(conn, "chinhanh", "INSERT", jsonData, pg);
                 }
+                Map<String, Object> logData = new HashMap<>();
+                logData.put("maCN", maCN); logData.put("tenCN", tenCN);
+                JsonLogger.log("Branch", "insert", "chinhanh", logData);
+                return true;
             }
-
         } catch (SQLException e) {
             System.err.println("❌ Lỗi thêm chi nhánh: " + e.getMessage());
-            e.printStackTrace();
         }
-
         return false;
     }
 
-    /**
-     * Cập nhật thông tin chi nhánh
-     */
     public static boolean updateBranch(String maCN, String tenCN, String thanhpho) {
-        String sql = "UPDATE chinhanh SET tenCN = ?, thanhpho = ? WHERE maCN = ?";
+        Connection[] connections = { DatabaseConnection.getTP1Connection(), DatabaseConnection.getTP2Connection() };
+        boolean updated = false;
 
-        try {
-            Connection conn = DatabaseConnection.getTP1Connection();
-            if (conn == null) conn = DatabaseConnection.getUserDbConnection();
-            if (conn == null) return false;
-            
+        for (int i = 0; i < connections.length; i++) {
+            Connection conn = connections[i];
+            if (conn == null) continue;
+
+            boolean pg = DatabaseConnection.isPostgresConnection(conn);
+            String sql = pg ? SQL_UPDATE_POSTGRES : SQL_UPDATE_MSSQL;
+
             try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
                 pstmt.setString(1, tenCN);
                 pstmt.setString(2, thanhpho);
@@ -231,55 +206,45 @@ public class BranchDAO {
                 int rows = pstmt.executeUpdate();
 
                 if (rows > 0) {
-                    System.out.println("✅ Cập nhật chi nhánh: " + maCN);
-                    
-                    // Tự động ghi log cho AI
-                    Map<String, Object> logData = new HashMap<>();
-                    logData.put("maCN", maCN);
-                    logData.put("tenCN", tenCN);
-                    logData.put("thanhpho", thanhpho);
-                    JsonLogger.log("TP1", "update", "chinhanh", logData);
-                    
-                    return true;
+                    updated = true;
+                    boolean usingBackup = (i == 0 && DatabaseConnection.isTP1UsingBackup()) ||
+                                          (i == 1 && DatabaseConnection.isTP2UsingBackup());
+                    if (usingBackup) {
+                        String jsonData = BackupSyncService.buildJsonData("maCN", maCN, "tenCN", tenCN, "thanhpho", thanhpho);
+                        BackupSyncService.logToChangelog(conn, "chinhanh", "UPDATE", jsonData, pg);
+                    }
                 }
-            }
-        } catch (SQLException e) {
-            System.err.println("❌ Lỗi cập nhật chi nhánh: " + e.getMessage());
-            e.printStackTrace();
+            } catch (SQLException e) { /* ignore */ }
         }
-        return false;
+        return updated;
     }
 
-    /**
-     * Xóa chi nhánh theo mã
-     */
     public static boolean deleteBranch(String maCN) {
-        String sql = "DELETE FROM chinhanh WHERE maCN = ?";
+        Connection[] connections = { DatabaseConnection.getTP1Connection(), DatabaseConnection.getTP2Connection() };
+        boolean deleted = false;
 
-        try {
-            Connection conn = DatabaseConnection.getTP1Connection();
-            if (conn == null) conn = DatabaseConnection.getUserDbConnection();
-            if (conn == null) return false;
-            
+        for (int i = 0; i < connections.length; i++) {
+            Connection conn = connections[i];
+            if (conn == null) continue;
+
+            boolean pg = DatabaseConnection.isPostgresConnection(conn);
+            String sql = pg ? SQL_DELETE_POSTGRES : SQL_DELETE_MSSQL;
+
             try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
                 pstmt.setString(1, maCN);
                 int rows = pstmt.executeUpdate();
 
                 if (rows > 0) {
-                    System.out.println("✅ Xóa chi nhánh: " + maCN);
-                    
-                    // Tự động ghi log cho AI
-                    Map<String, Object> logData = new HashMap<>();
-                    logData.put("maCN", maCN);
-                    JsonLogger.log("TP1", "delete", "chinhanh", logData);
-                    
-                    return true;
+                    deleted = true;
+                    boolean usingBackup = (i == 0 && DatabaseConnection.isTP1UsingBackup()) ||
+                                          (i == 1 && DatabaseConnection.isTP2UsingBackup());
+                    if (usingBackup) {
+                        String jsonData = BackupSyncService.buildJsonData("maCN", maCN);
+                        BackupSyncService.logToChangelog(conn, "chinhanh", "DELETE", jsonData, pg);
+                    }
                 }
-            }
-        } catch (SQLException e) {
-            System.err.println("❌ Lỗi xóa chi nhánh: " + e.getMessage());
-            e.printStackTrace();
+            } catch (SQLException e) { /* ignore */ }
         }
-        return false;
+        return deleted;
     }
 }

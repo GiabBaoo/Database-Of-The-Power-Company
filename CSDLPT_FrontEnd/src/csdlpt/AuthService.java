@@ -19,7 +19,7 @@ public class AuthService {
      */
     public static Map<String, String> getUserInfo(String maNV) {
         // Gọi StaffDAO để lấy thông tin chi tiết
-        return StaffDAO.getStaffFullInfo(maNV);
+        return StaffDAO.getStaffByUsername(maNV);
     }
 
     /**

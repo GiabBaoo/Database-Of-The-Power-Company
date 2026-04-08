@@ -5,8 +5,12 @@
 package csdlpt;
 
 import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.FlowLayout;
 import java.util.List;
 import java.util.Map;
+import javax.swing.BorderFactory;
+import javax.swing.Timer;
 import javax.swing.table.DefaultTableModel;
 
 /**
@@ -19,6 +23,13 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
     private javax.swing.JLabel lblTotalStaff;
     private javax.swing.JLabel lblTotalBranch;
     private javax.swing.JLabel lblTotalBills;
+    
+    // Failover Status Bar
+    private javax.swing.JPanel failoverStatusBar;
+    private javax.swing.JLabel lblTP1Status;
+    private javax.swing.JLabel lblTP2Status;
+    private javax.swing.JLabel lblTP3Status;
+    private Timer failoverTimer;
 
     /**
      * Creates new form AdminDashboardFrame
@@ -28,6 +39,11 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         this.setTitle("HỆ THỐNG QUẢN LÝ ĐIỆN LỰC PHÂN TÁN - ADMIN");
         this.setSize(1200, 800);
         this.setLocationRelativeTo(null); // Centering
+
+        // Khởi tạo site dựa trên session
+        if (SessionManager.isSiteAdmin()) {
+            this.currentSiteId = SessionManager.getSiteIdForAdmin();
+        }
 
         CardLayout cl = (CardLayout)(contentPanel.getLayout());
         cl.show(contentPanel, "Dashboard");
@@ -90,6 +106,13 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
                 currentSiteId = index;
                 refreshCurrentTable();
             });
+            
+            // Khóa site nếu là admin chi nhánh
+            if (SessionManager.isSiteAdmin()) {
+                if (index != currentSiteId) {
+                    btn.setEnabled(false);
+                }
+            }
             
             bg.add(btn);
             filterToolbar.add(btn);
@@ -314,6 +337,9 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         dashboardScreenPanel.removeAll();
         dashboardScreenPanel.add(topDashboardPanel, java.awt.BorderLayout.NORTH);
         dashboardScreenPanel.add(jScrollPane1, java.awt.BorderLayout.CENTER);
+
+        // ====== FAILOVER STATUS BAR ======
+        initFailoverStatusBar();
 
         this.revalidate();
         this.repaint();
@@ -1219,6 +1245,11 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         DefaultTableModel model = new DefaultTableModel();
         model.setColumnIdentifiers(new String[]{"Mã NV", "Tên NV", "Chi Nhánh", "Mật khẩu", "Vai trò", "Cơ sở"});
         for (Map<String, String> staff : staffList) {
+            // Lọc ra admin tổng nếu người đang xem là admin chi nhánh
+            if (!SessionManager.isGlobalAdmin() && "admin".equalsIgnoreCase(staff.get("maNV"))) {
+                continue;
+            }
+            
             String maskedPass = staff.get("password") != null ? "********" : "";
             model.addRow(new Object[]{
                 staff.get("maNV"),
@@ -1260,6 +1291,11 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         };
         model.setColumnIdentifiers(new String[]{"Mã NV", "Họ Tên", "Mã CN", "Mật khẩu", "Vai trò", "Cơ sở"});
         for (Map<String, String> staff : staffResults) {
+            // Lọc ra admin tổng nếu người đang xem là admin chi nhánh
+            if (!SessionManager.isGlobalAdmin() && "admin".equalsIgnoreCase(staff.get("maNV"))) {
+                continue;
+            }
+            
             String maskedPass = staff.get("password") != null ? "********" : "";
             model.addRow(new Object[]{
                 staff.get("maNV"),
@@ -1313,6 +1349,87 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
 
     private void loadBranchData() {
         loadBranchData("");
+    }
+
+    // ====================================================================
+    // FAILOVER STATUS BAR - Hiển thị trạng thái kết nối real-time
+    // ====================================================================
+    
+    private void initFailoverStatusBar() {
+        failoverStatusBar = new javax.swing.JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5));
+        failoverStatusBar.setBackground(new Color(30, 30, 30));
+        failoverStatusBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(60, 60, 60)));
+        failoverStatusBar.setPreferredSize(new java.awt.Dimension(0, 35));
+
+        javax.swing.JLabel lblTitle = new javax.swing.JLabel("⚡ Trạng thái Server:");
+        lblTitle.setForeground(Color.WHITE);
+        lblTitle.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 12));
+
+        lblTP1Status = createStatusLabel("TP1");
+        lblTP2Status = createStatusLabel("TP2");
+        lblTP3Status = createStatusLabel("TP3");
+
+        failoverStatusBar.add(lblTitle);
+        failoverStatusBar.add(lblTP1Status);
+        failoverStatusBar.add(lblTP2Status);
+        failoverStatusBar.add(lblTP3Status);
+
+        // Thêm vào bottom của frame
+        getContentPane().add(failoverStatusBar, java.awt.BorderLayout.SOUTH);
+
+        // Cập nhật trạng thái lần đầu
+        updateFailoverStatus();
+
+        // Timer cập nhật mỗi 5 giây
+        failoverTimer = new Timer(5000, e -> updateFailoverStatus());
+        failoverTimer.start();
+    }
+
+    private javax.swing.JLabel createStatusLabel(String serverName) {
+        javax.swing.JLabel lbl = new javax.swing.JLabel(serverName + ": ...");
+        lbl.setFont(new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 12));
+        lbl.setForeground(Color.LIGHT_GRAY);
+        lbl.setOpaque(true);
+        lbl.setBackground(new Color(50, 50, 50));
+        lbl.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(80, 80, 80), 1),
+            BorderFactory.createEmptyBorder(3, 8, 3, 8)
+        ));
+        return lbl;
+    }
+
+    private void updateFailoverStatus() {
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            boolean tp1Backup = DatabaseConnection.isTP1UsingBackup();
+            boolean tp2Backup = DatabaseConnection.isTP2UsingBackup();
+
+            // TP1
+            if (tp1Backup) {
+                lblTP1Status.setText("⚠️ TP1: BACKUP (SV4)");
+                lblTP1Status.setForeground(new Color(255, 200, 50));
+                lblTP1Status.setBackground(new Color(80, 60, 10));
+            } else {
+                lblTP1Status.setText("✅ TP1: Online");
+                lblTP1Status.setForeground(new Color(100, 255, 100));
+                lblTP1Status.setBackground(new Color(10, 60, 10));
+            }
+
+            // TP2
+            if (tp2Backup) {
+                lblTP2Status.setText("⚠️ TP2: BACKUP (SV5)");
+                lblTP2Status.setForeground(new Color(255, 200, 50));
+                lblTP2Status.setBackground(new Color(80, 60, 10));
+            } else {
+                lblTP2Status.setText("✅ TP2: Online");
+                lblTP2Status.setForeground(new Color(100, 255, 100));
+                lblTP2Status.setBackground(new Color(10, 60, 10));
+            }
+
+            // TP3 (Không có backup, chỉ hiển thị online/offline)
+            lblTP3Status.setText("✅ TP3: Online");
+            lblTP3Status.setForeground(new Color(100, 255, 100));
+            lblTP3Status.setBackground(new Color(10, 60, 10));
+        });
     }
     public static void main(String args[]) {
         /* Set the Nimbus look and feel */

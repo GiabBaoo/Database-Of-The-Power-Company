@@ -8,7 +8,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * Công cụ khởi tạo Database cho 3 Server
+ * Công cụ khởi tạo Database cho 5 Server (3 Primary + 2 Backup)
  */
 public class DatabaseInitializer {
 
@@ -19,33 +19,71 @@ public class DatabaseInitializer {
         runScriptOnConnection(DatabaseConnection.getTP1Connection(), "../scripts/setup_server1_hanoi.sql", "SERVER 1 (HÀ NỘI)");
 
         // Khởi tạo Server 2 (Đà Nẵng)
-        runScriptOnConnection(DatabaseConnection.getTP2Connection(), "../scripts/setup_server2_danang.sql", "SERVER 2 (ĐÀ NẴNG)");
+        runScriptOnConnection(DatabaseConnection.getTP2Connection(), "../scripts/setup_server2_danang.sql", "SERVER 2 (?? NẴNG)");
 
         // Khởi tạo Server 3 (Hồ Chí Minh)
         runScriptOnConnection(DatabaseConnection.getTP3Connection(), "../scripts/setup_server3_hcm.sql", "SERVER 3 (HỒ CHÍ MINH)");
 
+        // ====== BACKUP SERVERS ======
+        System.out.println("\n🔧 KHỞI TẠO BACKUP SERVERS (Cập nhật Schema)...");
+        
+        // Khởi tạo Server 4 (Backup TP1) - Xóa dữ liệu + tạo changelog table + thêm cột password/role
+        runScriptOnConnection(DatabaseConnection.getSV4Connection(), "../scripts/setup_server4_backup_tp1.sql", "SERVER 4 (BACKUP TP1)");
+        
+        // Khởi tạo Server 5 (Backup TP2) - Xóa dữ liệu + tạo changelog table
+        runScriptOnConnection(DatabaseConnection.getSV5Connection(), "../scripts/setup_server5_backup_tp2.sql", "SERVER 5 (BACKUP TP2)");
+
+        // ====== REPLICATE DATA VÀO BACKUP ======
+        System.out.println("\n📦 ĐỒNG BỘ DỮ LIỆU VÀO BACKUP SERVERS...");
+        
+        boolean tp1Ok = BackupSyncService.replicateTP1ToSV4();
+        boolean tp2Ok = BackupSyncService.replicateTP2ToSV5();
+
         System.out.println("\n✅ QUÁ TRÌNH KHỞI TẠO HOÀN TẤT!");
+        System.out.println("📋 Tóm tắt trạng thái:");
+        
+        printStatus("TP1 (SV1 Hà Nội)", DatabaseConnection.getTP1Connection() != null);
+        printStatus("TP2 (SV2 Đà Nẵng)", DatabaseConnection.getTP2Connection() != null);
+        printStatus("TP3 (SV3 TP.HCM)", DatabaseConnection.getTP3Connection() != null);
+        printStatus("Sync SV1 -> SV4 (Backup)", tp1Ok);
+        printStatus("Sync SV2 -> SV5 (Backup)", tp2Ok);
+
+        if (!tp1Ok || !tp2Ok) {
+            System.out.println("\n⚠️  CẢNH BÁO: Quá trình đồng bộ dữ liệu vào Backup chưa hoàn tất.");
+            System.out.println("    Đảm bảo các server chính (TP1, TP2) đang ONLINE và đúng mật khẩu trong .env để thực hiện Sync.");
+        } else {
+            System.out.println("\n✨ Hệ thống đã sẵn sàng cho Failover!");
+        }
+        
         DatabaseConnection.closeAllConnections();
+    }
+
+    private static void printStatus(String target, boolean success) {
+        System.out.println("   " + (success ? "✅" : "❌") + " " + target + (success ? " OK" : " THẤT BẠI"));
     }
 
     private static void runScriptOnConnection(Connection conn, String scriptPath, String serverName) {
         System.out.println("\n--- Đang cấu hình " + serverName + " ---");
         if (conn == null) {
-            System.err.println("❌ Không thể kết nối tới " + serverName);
+            System.err.println("❌ Không thể kết nối tới " + serverName + ". Bỏ qua script.");
             return;
         }
+
+        boolean isPostgres = DatabaseConnection.isPostgresConnection(conn);
 
         try (BufferedReader reader = new BufferedReader(new FileReader(scriptPath));
              Statement stmt = conn.createStatement()) {
 
             StringBuilder sql = new StringBuilder();
             String line;
+            boolean insideDollarQuote = false;
+
             while ((line = reader.readLine()) != null) {
-                // Bỏ qua comment
-                if (line.trim().startsWith("--") || line.trim().isEmpty()) continue;
+                String trimmedLine = line.trim();
+                if (trimmedLine.startsWith("--") || (trimmedLine.isEmpty() && !insideDollarQuote)) continue;
                 
-                // Xử lý GO (SQL Server) hoặc delimiter
-                if (line.trim().equalsIgnoreCase("GO")) {
+                // MSSQL GO delimiter
+                if (!isPostgres && trimmedLine.equalsIgnoreCase("GO")) {
                     if (sql.length() > 0) {
                         stmt.execute(sql.toString());
                         sql.setLength(0);
@@ -53,30 +91,40 @@ public class DatabaseInitializer {
                     continue;
                 }
 
+                // Check for PostgreSQL dollar quotes ($$)
+                if (isPostgres) {
+                    // Simple check if line contains $$ toggling
+                    int firstIdx = line.indexOf("$$");
+                    if (firstIdx != -1) {
+                        insideDollarQuote = !insideDollarQuote;
+                        // It's possible there are two $$ on the same line, but for our blocks it's usually separate
+                        if (line.indexOf("$$", firstIdx + 2) != -1) {
+                            insideDollarQuote = !insideDollarQuote; // toggle back
+                        }
+                    }
+                }
+
                 sql.append(line).append("\n");
 
-                // Nếu là PostgreSQL (Server 3) và kết thúc bằng dấu ; (ngoài block function)
-                // Hoặc SQL Server thông thường
-                if (line.trim().endsWith(";") && !scriptPath.contains("hcm.sql")) {
+                // PostgreSQL statement delimiter (only if NOT inside $$ block)
+                if (isPostgres && !insideDollarQuote && trimmedLine.endsWith(";")) {
                      stmt.execute(sql.toString());
                      sql.setLength(0);
                 }
             }
             
-            // Thực thi phần còn lại
+            // Execute anything remaining
             if (sql.length() > 0) {
                 stmt.execute(sql.toString());
             }
 
-            System.out.println("✅ " + serverName + ": Thực thi script thành công!");
+            System.out.println("✅ " + serverName + ": Cấu hình thành công!");
 
         } catch (IOException e) {
             System.err.println("❌ Lỗi đọc file script: " + e.getMessage());
         } catch (SQLException e) {
-            System.err.println("❌ Lỗi thực thi SQL tại " + serverName + ": " + e.getMessage());
-            System.err.println("   Chi tiết lỗi: " + e.getSQLState() + " - Code: " + e.getErrorCode());
-            // Lấy stack trace nếu cần
-            e.printStackTrace();
+            System.err.println("❌ Lỗi SQL tại " + serverName + ": " + e.getMessage());
+            System.err.println("   Code: " + e.getErrorCode() + " - " + e.getSQLState());
         }
     }
 }
