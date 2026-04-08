@@ -238,15 +238,22 @@ public class StaffDAO {
     }
 
     /**
-     * Cập nhật thông tin nhân viên
+     * Cập nhật thông tin nhân viên (tìm trên tất cả các site phân tán)
      */
     public static boolean updateStaff(String maNV, String hoten, String maCN, String password, String role) {
         String sql = "UPDATE nhanvien SET hoten = ?, maCN = ?, password = ?, role = ? WHERE maNV = ?";
 
-        try {
-            Connection conn = DatabaseConnection.getUserDbConnection();
-            if (conn == null) return false;
-            
+        String[] siteNames = {"TP1", "TP2", "TP3"};
+        Connection[] allConnections = {
+            DatabaseConnection.getTP1Connection(),
+            DatabaseConnection.getTP2Connection(),
+            DatabaseConnection.getTP3Connection()
+        };
+
+        for (int i = 0; i < allConnections.length; i++) {
+            Connection conn = allConnections[i];
+            if (conn == null) continue;
+
             try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
                 pstmt.setString(1, hoten);
                 pstmt.setString(2, maCN);
@@ -256,54 +263,59 @@ public class StaffDAO {
                 int rows = pstmt.executeUpdate();
 
                 if (rows > 0) {
-                    System.out.println("✅ Cập nhật nhân viên: " + maNV);
+                    System.out.println("✅ Cập nhật nhân viên " + maNV + " tại " + siteNames[i]);
                     
-                    // Tự động ghi log cho AI
                     Map<String, Object> logData = new HashMap<>();
                     logData.put("maNV", maNV);
                     logData.put("hoten", hoten);
                     logData.put("maCN", maCN);
-                    JsonLogger.log("TP2", "update", "nhanvien", logData);
+                    JsonLogger.log(siteNames[i], "update", "nhanvien", logData);
                     
                     return true;
                 }
+            } catch (SQLException e) {
+                System.err.println("❌ Lỗi cập nhật nhân viên tại " + siteNames[i] + ": " + e.getMessage());
             }
-        } catch (SQLException e) {
-            System.err.println("❌ Lỗi cập nhật nhân viên: " + e.getMessage());
-            e.printStackTrace();
         }
+        System.err.println("❌ Không tìm thấy nhân viên " + maNV + " trên bất kỳ site nào");
         return false;
     }
 
     /**
-     * Xóa nhân viên theo mã
+     * Xóa nhân viên theo mã (tìm trên tất cả các site phân tán)
      */
     public static boolean deleteStaff(String maNV) {
         String sql = "DELETE FROM nhanvien WHERE maNV = ?";
 
-        try {
-            Connection conn = DatabaseConnection.getUserDbConnection();
-            if (conn == null) return false;
-            
+        String[] siteNames = {"TP1", "TP2", "TP3"};
+        Connection[] allConnections = {
+            DatabaseConnection.getTP1Connection(),
+            DatabaseConnection.getTP2Connection(),
+            DatabaseConnection.getTP3Connection()
+        };
+
+        for (int i = 0; i < allConnections.length; i++) {
+            Connection conn = allConnections[i];
+            if (conn == null) continue;
+
             try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
                 pstmt.setString(1, maNV);
                 int rows = pstmt.executeUpdate();
 
                 if (rows > 0) {
-                    System.out.println("✅ Xóa nhân viên: " + maNV);
+                    System.out.println("✅ Xóa nhân viên " + maNV + " tại " + siteNames[i]);
                     
-                    // Tự động ghi log cho AI
                     Map<String, Object> logData = new HashMap<>();
                     logData.put("maNV", maNV);
-                    JsonLogger.log("TP2", "delete", "nhanvien", logData);
+                    JsonLogger.log(siteNames[i], "delete", "nhanvien", logData);
                     
                     return true;
                 }
+            } catch (SQLException e) {
+                System.err.println("❌ Lỗi xóa nhân viên tại " + siteNames[i] + ": " + e.getMessage());
             }
-        } catch (SQLException e) {
-            System.err.println("❌ Lỗi xóa nhân viên: " + e.getMessage());
-            e.printStackTrace();
         }
+        System.err.println("❌ Không tìm thấy nhân viên " + maNV + " trên bất kỳ site nào");
         return false;
     }
 

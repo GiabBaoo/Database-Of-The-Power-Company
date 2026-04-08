@@ -238,9 +238,15 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         javax.swing.JPanel contractControls = new javax.swing.JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 15, 10));
         txtSearchContract = new javax.swing.JTextField(15);
         btnSearchContract = new javax.swing.JButton("Tìm theo Mã KH");
+        btnAddContract = new javax.swing.JButton("Thêm HĐ");
+        btnEditContract = new javax.swing.JButton("Sửa HĐ");
+        btnDeleteContract = new javax.swing.JButton("Xóa HĐ");
         contractControls.add(new javax.swing.JLabel("Mã KH:"));
         contractControls.add(txtSearchContract);
         contractControls.add(btnSearchContract);
+        contractControls.add(btnAddContract);
+        contractControls.add(btnEditContract);
+        contractControls.add(btnDeleteContract);
         
         topContractPanel.add(createFilterToolbar(), java.awt.BorderLayout.NORTH);
         topContractPanel.add(contractControls, java.awt.BorderLayout.SOUTH);
@@ -250,6 +256,9 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         contentPanel.add(contractManagementPanel, "QuanLyHopDong");
         
         btnSearchContract.addActionListener(evt -> loadContractData(txtSearchContract.getText().trim()));
+        btnAddContract.addActionListener(evt -> btnAddContractActionPerformed(evt));
+        btnEditContract.addActionListener(evt -> btnEditContractActionPerformed(evt));
+        btnDeleteContract.addActionListener(evt -> btnDeleteContractActionPerformed(evt));
         
         tblContracts.setRowHeight(28);
         tblCustomers.setRowHeight(28);
@@ -644,6 +653,11 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         });
 
         jButton1.setText("Thêm Nhân Viên");
+        jButton1.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton1ActionPerformed(evt);
+            }
+        });
 
         tblSaffs.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
@@ -1066,6 +1080,7 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         } else {
             results = ContractDAO.getAllContracts(currentSiteId);
         }
+        currentContractList = results;
         
         DefaultTableModel model = new DefaultTableModel() {
             @Override
@@ -1090,6 +1105,101 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
                 tblContracts.setModel(model);
             }
         });
+    }
+
+    private void btnAddContractActionPerformed(java.awt.event.ActionEvent evt) {
+        String soHD = javax.swing.JOptionPane.showInputDialog(this, "Nhập Số Hợp Đồng:");
+        if (soHD == null || soHD.trim().isEmpty()) return;
+        
+        String maKH = javax.swing.JOptionPane.showInputDialog(this, "Nhập Mã Khách Hàng:");
+        if (maKH == null || maKH.trim().isEmpty()) return;
+        
+        String soDienKe = javax.swing.JOptionPane.showInputDialog(this, "Nhập Số Điện Kế:");
+        if (soDienKe == null || soDienKe.trim().isEmpty()) return;
+        
+        String kwDinhMuc = javax.swing.JOptionPane.showInputDialog(this, "Nhập KW Định Mức:");
+        if (kwDinhMuc == null || kwDinhMuc.trim().isEmpty()) return;
+        
+        String dongiaKW = javax.swing.JOptionPane.showInputDialog(this, "Nhập Đơn Giá KW:");
+        if (dongiaKW == null || dongiaKW.trim().isEmpty()) return;
+
+        try {
+            Integer.parseInt(soDienKe.trim());
+            Integer.parseInt(kwDinhMuc.trim());
+            Double.parseDouble(dongiaKW.trim());
+        } catch (NumberFormatException e) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Số Điện Kế, KW Định Mức phải là số nguyên, Đơn Giá phải là số!", "Lỗi", javax.swing.JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (ContractDAO.addContract(soHD.trim(), maKH.trim(), soDienKe.trim(), kwDinhMuc.trim(), dongiaKW.trim())) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Thêm hợp đồng " + soHD + " thành công!");
+            loadContractData();
+        } else {
+            javax.swing.JOptionPane.showMessageDialog(this, "Lỗi khi thêm hợp đồng! Kiểm tra mã KH có tồn tại không.", "Lỗi", javax.swing.JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void btnEditContractActionPerformed(java.awt.event.ActionEvent evt) {
+        int row = tblContracts.getSelectedRow();
+        if (row < 0 || currentContractList == null || row >= currentContractList.size()) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Vui lòng chọn một hợp đồng để sửa!");
+            return;
+        }
+        
+        Map<String, String> contract = currentContractList.get(row);
+        String soHD = contract.get("soHD");
+        String currentMaKH = contract.get("maKH");
+        String currentSDK = contract.get("soDienKe");
+        String currentKW = contract.get("kwDinhMuc");
+        String currentDG = contract.get("dongiaKW");
+
+        String maKH = javax.swing.JOptionPane.showInputDialog(this, "Sửa Mã Khách Hàng:", currentMaKH);
+        if (maKH == null || maKH.trim().isEmpty()) return;
+        
+        String soDienKe = javax.swing.JOptionPane.showInputDialog(this, "Sửa Số Điện Kế:", currentSDK);
+        if (soDienKe == null || soDienKe.trim().isEmpty()) return;
+        
+        String kwDinhMuc = javax.swing.JOptionPane.showInputDialog(this, "Sửa KW Định Mức:", currentKW);
+        if (kwDinhMuc == null || kwDinhMuc.trim().isEmpty()) return;
+        
+        String dongiaKW = javax.swing.JOptionPane.showInputDialog(this, "Sửa Đơn Giá KW:", currentDG);
+        if (dongiaKW == null || dongiaKW.trim().isEmpty()) return;
+
+        try {
+            Integer.parseInt(soDienKe.trim());
+            Integer.parseInt(kwDinhMuc.trim());
+            Double.parseDouble(dongiaKW.trim());
+        } catch (NumberFormatException e) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Số Điện Kế, KW Định Mức phải là số nguyên, Đơn Giá phải là số!", "Lỗi", javax.swing.JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (ContractDAO.updateContract(soHD, maKH.trim(), soDienKe.trim(), kwDinhMuc.trim(), dongiaKW.trim())) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Cập nhật hợp đồng thành công!");
+            loadContractData();
+        } else {
+            javax.swing.JOptionPane.showMessageDialog(this, "Lỗi khi cập nhật hợp đồng!");
+        }
+    }
+
+    private void btnDeleteContractActionPerformed(java.awt.event.ActionEvent evt) {
+        int row = tblContracts.getSelectedRow();
+        if (row < 0) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Vui lòng chọn một hợp đồng để xóa!");
+            return;
+        }
+        String soHD = tblContracts.getValueAt(row, 0).toString();
+        int confirm = javax.swing.JOptionPane.showConfirmDialog(this, "Bạn có chắc chắn muốn xóa hợp đồng " + soHD + "?", "Xác nhận xóa", javax.swing.JOptionPane.YES_NO_OPTION);
+        
+        if (confirm == javax.swing.JOptionPane.YES_OPTION) {
+            if (ContractDAO.deleteContract(soHD)) {
+                javax.swing.JOptionPane.showMessageDialog(this, "Xóa hợp đồng thành công!");
+                loadContractData();
+            } else {
+                javax.swing.JOptionPane.showMessageDialog(this, "Lỗi khi xóa hợp đồng! Có thể do còn hóa đơn liên quan.", "Lỗi", javax.swing.JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     private void txtSearchSaffActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtSearchSaffActionPerformed
@@ -1293,5 +1403,9 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
     private javax.swing.JButton btnSearchCustomer;
     private javax.swing.JButton btnSearchContract;
     private java.util.List<java.util.Map<String, String>> currentCustomerList;
+    private java.util.List<java.util.Map<String, String>> currentContractList;
+    private javax.swing.JButton btnAddContract;
+    private javax.swing.JButton btnEditContract;
+    private javax.swing.JButton btnDeleteContract;
     // End of variables declaration//GEN-END:variables
 }
