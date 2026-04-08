@@ -78,8 +78,8 @@ public class BranchDAO {
     public static int getTotalBranchesCount(int siteId) {
         int total = 0;
         Connection[] connections = {
-            DatabaseConnection.getTP1Connection(),
-            DatabaseConnection.getTP2Connection(),
+            DatabaseConnection.getTP1ReadConnection(),
+            DatabaseConnection.getTP2ReadConnection(),
             DatabaseConnection.getTP3Connection()
         };
         for (int i = 0; i < connections.length; i++) {
@@ -96,8 +96,8 @@ public class BranchDAO {
 
     public static Map<String, String> getBranchById(String maCN) {
         Connection[] connections = {
-                DatabaseConnection.getTP1Connection(),
-                DatabaseConnection.getTP2Connection(),
+                DatabaseConnection.getTP1ReadConnection(),
+                DatabaseConnection.getTP2ReadConnection(),
                 DatabaseConnection.getTP3Connection()
         };
         for (int i = 0; i < connections.length; i++) {
@@ -153,33 +153,34 @@ public class BranchDAO {
     }
 
     public static boolean addBranch(String maCN, String tenCN, String thanhpho) {
-        // Mặc định thêm vào TP1 (thường Chi Nhánh được replicate hoặc quản lý tại trung tâm)
-        Connection conn = DatabaseConnection.getTP1Connection();
+        Connection conn = DatabaseConnection.getTP1WriteConnection();
         boolean usingBackup = DatabaseConnection.isTP1UsingBackup();
         
-        if (conn == null) {
-            conn = DatabaseConnection.getTP2Connection(); // Fallback sang site khác nếu TP1 sập
-            usingBackup = DatabaseConnection.isTP2UsingBackup();
-        }
         if (conn == null) return false;
 
         boolean pg = DatabaseConnection.isPostgresConnection(conn);
         String sql = pg ? SQL_INSERT_POSTGRES : SQL_INSERT_MSSQL;
 
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, maCN);
-            pstmt.setString(2, tenCN);
-            pstmt.setString(3, thanhpho);
+            pstmt.setString(1, maCN); pstmt.setString(2, tenCN); pstmt.setString(3, thanhpho);
             int rows = pstmt.executeUpdate();
 
             if (rows > 0) {
                 if (usingBackup) {
                     String jsonData = BackupSyncService.buildJsonData("maCN", maCN, "tenCN", tenCN, "thanhpho", thanhpho);
                     BackupSyncService.logToChangelog(conn, "chinhanh", "INSERT", jsonData, pg);
+                } else {
+                    // Sync sang Read-only server (SV4)
+                    Connection backup = DatabaseConnection.getSV4Connection();
+                    if (backup != null) {
+                        boolean bPg = DatabaseConnection.isPostgresConnection(backup);
+                        String bSql = bPg ? SQL_INSERT_POSTGRES : SQL_INSERT_MSSQL;
+                        try (PreparedStatement pb = backup.prepareStatement(bSql)) {
+                            pb.setString(1, maCN); pb.setString(2, tenCN); pb.setString(3, thanhpho);
+                            pb.executeUpdate();
+                        } catch (SQLException e) {}
+                    }
                 }
-                Map<String, Object> logData = new HashMap<>();
-                logData.put("maCN", maCN); logData.put("tenCN", tenCN);
-                JsonLogger.log("Branch", "insert", "chinhanh", logData);
                 return true;
             }
         } catch (SQLException e) {
@@ -189,20 +190,18 @@ public class BranchDAO {
     }
 
     public static boolean updateBranch(String maCN, String tenCN, String thanhpho) {
-        Connection[] connections = { DatabaseConnection.getTP1Connection(), DatabaseConnection.getTP2Connection() };
+        Connection[] writeCnns = { DatabaseConnection.getTP1WriteConnection(), DatabaseConnection.getTP2WriteConnection() };
         boolean updated = false;
 
-        for (int i = 0; i < connections.length; i++) {
-            Connection conn = connections[i];
+        for (int i = 0; i < writeCnns.length; i++) {
+            Connection conn = writeCnns[i];
             if (conn == null) continue;
 
             boolean pg = DatabaseConnection.isPostgresConnection(conn);
             String sql = pg ? SQL_UPDATE_POSTGRES : SQL_UPDATE_MSSQL;
 
             try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-                pstmt.setString(1, tenCN);
-                pstmt.setString(2, thanhpho);
-                pstmt.setString(3, maCN);
+                pstmt.setString(1, tenCN); pstmt.setString(2, thanhpho); pstmt.setString(3, maCN);
                 int rows = pstmt.executeUpdate();
 
                 if (rows > 0) {
@@ -212,6 +211,17 @@ public class BranchDAO {
                     if (usingBackup) {
                         String jsonData = BackupSyncService.buildJsonData("maCN", maCN, "tenCN", tenCN, "thanhpho", thanhpho);
                         BackupSyncService.logToChangelog(conn, "chinhanh", "UPDATE", jsonData, pg);
+                    } else {
+                        // Sync tức thời sang site Read-Only
+                        Connection backup = (i == 0) ? DatabaseConnection.getSV4Connection() : DatabaseConnection.getSV5Connection();
+                        if (backup != null) {
+                            boolean bPg = DatabaseConnection.isPostgresConnection(backup);
+                            String bSql = bPg ? SQL_UPDATE_POSTGRES : SQL_UPDATE_MSSQL;
+                            try (PreparedStatement pb = backup.prepareStatement(bSql)) {
+                                pb.setString(1, tenCN); pb.setString(2, thanhpho); pb.setString(3, maCN);
+                                pb.executeUpdate();
+                            } catch (SQLException e) {}
+                        }
                     }
                 }
             } catch (SQLException e) { /* ignore */ }

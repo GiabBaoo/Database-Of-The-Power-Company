@@ -92,8 +92,27 @@ public class DatabaseConnection {
     // ====== KẾT NỐI PRIMARY SERVERS ======
 
     /**
-     * Kết nối tới TP1 (Local SQL Server)
-     * Nếu TP1 sập → tự động failover sang SV4 (Backup)
+     * Lấy kết nối dùng để ĐỌC dữ liệu cho cụm 1
+     * Ưu tiên máy chủ Chỉ đọc (SV4), nếu lỗi mới đọc từ TP1
+     */
+    public static Connection getTP1ReadConnection() {
+        Connection sv4 = getSV4Connection();
+        if (sv4 != null) {
+            return sv4;
+        }
+        return getTP1Connection();
+    }
+
+    /**
+     * Lấy kết nối dùng để GHI dữ liệu cho cụm 1
+     * Ưu tiên máy chủ Cập nhật (TP1), nếu sập mới ghi vào SV4
+     */
+    public static Connection getTP1WriteConnection() {
+        return getTP1Connection();
+    }
+
+    /**
+     * Kết nối tới TP1 (Primary) có failover
      */
     public static Connection getTP1Connection() {
         // Nếu đang dùng backup, trả về SV4
@@ -146,8 +165,27 @@ public class DatabaseConnection {
     }
 
     /**
-     * Kết nối tới TP2 (Cloud SQL Server)
-     * Nếu TP2 sập → tự động failover sang SV5 (Backup)
+     * Lấy kết nối dùng để ĐỌC dữ liệu cho cụm 2
+     * Ưu tiên máy chủ Chỉ đọc (SV5), nếu lỗi mới đọc từ TP2
+     */
+    public static Connection getTP2ReadConnection() {
+        Connection sv5 = getSV5Connection();
+        if (sv5 != null) {
+            return sv5;
+        }
+        return getTP2Connection();
+    }
+
+    /**
+     * Lấy kết nối dùng để GHI dữ liệu cho cụm 2
+     * Ưu tiên máy chủ Cập nhật (TP2), nếu sập mới ghi vào SV5
+     */
+    public static Connection getTP2WriteConnection() {
+        return getTP2Connection(); // getTP2Connection đã có sẵn logic failover sang SV5
+    }
+
+    /**
+     * Kết nối tới TP2 (Primary) có failover
      */
     public static Connection getTP2Connection() {
         // Nếu đang dùng backup, trả về SV5

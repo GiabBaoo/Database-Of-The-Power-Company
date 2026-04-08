@@ -72,8 +72,8 @@ public class StaffDAO {
         List<Map<String, String>> staffList = new ArrayList<>();
 
         Connection[] allConnections = {
-            DatabaseConnection.getTP1Connection(),
-            DatabaseConnection.getTP2Connection(),
+            DatabaseConnection.getTP1ReadConnection(),
+            DatabaseConnection.getTP2ReadConnection(),
             DatabaseConnection.getTP3Connection()
         };
 
@@ -108,8 +108,8 @@ public class StaffDAO {
         List<Map<String, String>> staffList = new ArrayList<>();
 
         Connection[] allConnections = {
-            DatabaseConnection.getTP1Connection(),
-            DatabaseConnection.getTP2Connection(),
+            DatabaseConnection.getTP1ReadConnection(),
+            DatabaseConnection.getTP2ReadConnection(),
             DatabaseConnection.getTP3Connection()
         };
 
@@ -178,30 +178,26 @@ public class StaffDAO {
         Connection conn = null;
         String siteName = "";
         boolean usingBackup = false;
-        boolean backupIsPostgres = false;
 
         if (maCN.equalsIgnoreCase("CN1")) {
-            conn = DatabaseConnection.getTP1Connection();
-            siteName = "TP1";
+            conn = DatabaseConnection.getTP1WriteConnection();
+            siteName = "TP1 (Update Server)";
             usingBackup = DatabaseConnection.isTP1UsingBackup();
-            backupIsPostgres = false; // SV4 = MSSQL
         } else if (maCN.equalsIgnoreCase("CN2")) {
-            conn = DatabaseConnection.getTP2Connection();
-            siteName = "TP2";
+            conn = DatabaseConnection.getTP2WriteConnection();
+            siteName = "TP2 (Update Server)";
             usingBackup = DatabaseConnection.isTP2UsingBackup();
-            backupIsPostgres = true;  // SV5 = PostgreSQL
         } else if (maCN.equalsIgnoreCase("CN3")) {
             conn = DatabaseConnection.getTP3Connection();
-            siteName = "TP3";
+            siteName = "TP3 (Update Server)";
             usingBackup = false;
-            backupIsPostgres = true; // TP3 = PostgreSQL
         } else {
             conn = DatabaseConnection.getUserDbConnection();
             siteName = "UserDB";
         }
 
         if (conn == null) {
-            System.err.println("❌ Không kết nối được: " + siteName);
+            System.err.println("❌ Không kết nối được server cập nhật của: " + siteName);
             return false;
         }
 
@@ -217,21 +213,43 @@ public class StaffDAO {
             int rows = pstmt.executeUpdate();
 
             if (rows > 0) {
-                System.out.println("✅ Thêm nhân viên " + maNV + " vào " + siteName
-                        + (usingBackup ? " (⚡BACKUP)" : ""));
+                System.out.println("✅ [UPDATE SERVER] Thêm nhân viên " + maNV + " vào " + siteName
+                        + (usingBackup ? " (⚡FAILOVER MODE)" : ""));
+                
+                // Đồng bộ sang site Chỉ Đọc (Backup) ngay lập tức
                 if (usingBackup) {
+                    // Nếu đang failover, chỉ cần log changelog
                     String json = BackupSyncService.buildJsonData(
                         "maNV", maNV, "hoten", hoten, "maCN", maCN, "password", password, "role", role
                     );
                     BackupSyncService.logToChangelog(conn, "nhanvien", "INSERT", json, pg);
+                } else {
+                    // Nếu server chính bình thường, ghi song song sang Backup để site Read-Only có dữ liệu mới
+                    Connection backup = null;
+                    if (maCN.equalsIgnoreCase("CN1")) backup = DatabaseConnection.getSV4Connection();
+                    else if (maCN.equalsIgnoreCase("CN2")) backup = DatabaseConnection.getSV5Connection();
+                    
+                    if (backup != null) {
+                        boolean bPg = DatabaseConnection.isPostgresConnection(backup);
+                        String bSql = bPg ? SQL_INSERT_POSTGRES : SQL_INSERT_MSSQL;
+                        try (PreparedStatement pb = backup.prepareStatement(bSql)) {
+                            pb.setString(1, maNV); pb.setString(2, hoten); pb.setString(3, maCN);
+                            pb.setString(4, password); pb.setString(5, role);
+                            pb.executeUpdate();
+                            System.out.println("  🔄 [READ-ONLY SERVER] Đã đồng bộ tức thời nhân viên " + maNV);
+                        } catch (SQLException ex) {
+                            System.err.println("  ⚠️ Cảnh báo: Site Read-Only chưa cập nhật được dữ liệu mới.");
+                        }
+                    }
                 }
+                
                 Map<String, Object> logData = new HashMap<>();
                 logData.put("maNV", maNV); logData.put("hoten", hoten); logData.put("maCN", maCN);
                 JsonLogger.log(siteName, "insert", "nhanvien", logData);
                 return true;
             }
         } catch (SQLException e) {
-            System.err.println("❌ Lỗi thêm nhân viên: " + e.getMessage());
+            System.err.println("❌ Lỗi cập nhật tại Update Server: " + e.getMessage());
         }
         return false;
     }
@@ -241,52 +259,60 @@ public class StaffDAO {
      * Tự động ghi changelog nếu đang dùng backup
      */
     public static boolean updateStaff(String maNV, String hoten, String maCN, String password, String role) {
-        // KIỂM TRA QUYỀN: Không cho phép sửa admin tổng nếu không phải admin tổng
+        // KIỂM TRA QUYỀN
         if (maNV.equalsIgnoreCase("admin") && !SessionManager.isGlobalAdmin()) {
-            System.err.println("❌ Cảnh báo bảo mật: " + SessionManager.getMaNV() + " thử sửa admin!");
             return false;
         }
 
-        Connection[] allConnections = {
-            DatabaseConnection.getTP1Connection(),
-            DatabaseConnection.getTP2Connection(),
+        Connection[] writeConnections = {
+            DatabaseConnection.getTP1WriteConnection(),
+            DatabaseConnection.getTP2WriteConnection(),
             DatabaseConnection.getTP3Connection()
         };
 
-        for (int i = 0; i < allConnections.length; i++) {
-            Connection conn = allConnections[i];
+        for (int i = 0; i < writeConnections.length; i++) {
+            Connection conn = writeConnections[i];
             if (conn == null) continue;
 
             boolean pg = DatabaseConnection.isPostgresConnection(conn);
             String sql = pg ? SQL_UPDATE_POSTGRES : SQL_UPDATE_MSSQL;
-            String siteName = "TP" + (i + 1);
+            String siteName = "TP" + (i + 1) + " (Update Server)";
 
             try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-                pstmt.setString(1, hoten);
-                pstmt.setString(2, maCN);
-                pstmt.setString(3, password);
-                pstmt.setString(4, role);
+                pstmt.setString(1, hoten); pstmt.setString(2, maCN);
+                pstmt.setString(3, password); pstmt.setString(4, role);
                 pstmt.setString(5, maNV);
                 int rows = pstmt.executeUpdate();
 
                 if (rows > 0) {
                     boolean usingBackup = (i == 0 && DatabaseConnection.isTP1UsingBackup()) ||
                                           (i == 1 && DatabaseConnection.isTP2UsingBackup());
-                    System.out.println("✅ Cập nhật nhân viên " + maNV + " tại " + siteName
-                            + (usingBackup ? " (⚡BACKUP)" : ""));
+                    System.out.println("✅ [UPDATE SERVER] Cập nhật nhân viên " + maNV + " tại " + siteName);
+
                     if (usingBackup) {
                         String json = BackupSyncService.buildJsonData(
                             "maNV", maNV, "hoten", hoten, "maCN", maCN, "password", password, "role", role
                         );
                         BackupSyncService.logToChangelog(conn, "nhanvien", "UPDATE", json, pg);
+                    } else if (i < 2) {
+                        // Đồng bộ tức thời cho site Read-Only
+                        Connection backup = (i == 0) ? DatabaseConnection.getSV4Connection() : DatabaseConnection.getSV5Connection();
+                        if (backup != null) {
+                            boolean bPg = DatabaseConnection.isPostgresConnection(backup);
+                            String bSql = bPg ? SQL_UPDATE_POSTGRES : SQL_UPDATE_MSSQL;
+                            try (PreparedStatement pb = backup.prepareStatement(bSql)) {
+                                pb.setString(1, hoten); pb.setString(2, maCN);
+                                pb.setString(3, password); pb.setString(4, role);
+                                pb.setString(5, maNV);
+                                pb.executeUpdate();
+                                System.out.println("  🔄 [READ-ONLY SERVER] Đã cập nhật tức thời nhân viên " + maNV);
+                            } catch (SQLException ex) {}
+                        }
                     }
-                    Map<String, Object> logData = new HashMap<>();
-                    logData.put("maNV", maNV); logData.put("hoten", hoten);
-                    JsonLogger.log(siteName, "update", "nhanvien", logData);
                     return true;
                 }
             } catch (SQLException e) {
-                System.err.println("❌ Lỗi cập nhật nhân viên tại " + siteName + ": " + e.getMessage());
+                System.err.println("❌ Lỗi cập nhật nhân viên tại " + siteName);
             }
         }
         return false;
@@ -297,25 +323,21 @@ public class StaffDAO {
      * Tự động ghi changelog nếu đang dùng backup
      */
     public static boolean deleteStaff(String maNV) {
-        // KIỂM TRA QUYỀN: Không cho phép xóa admin tổng
-        if (maNV.equalsIgnoreCase("admin")) {
-            System.err.println("❌ Cảnh báo bảo mật: Không ai được phép xóa admin hệ thống!");
-            return false;
-        }
+        if (maNV.equalsIgnoreCase("admin")) return false;
 
-        Connection[] allConnections = {
-            DatabaseConnection.getTP1Connection(),
-            DatabaseConnection.getTP2Connection(),
+        Connection[] writeConnections = {
+            DatabaseConnection.getTP1WriteConnection(),
+            DatabaseConnection.getTP2WriteConnection(),
             DatabaseConnection.getTP3Connection()
         };
 
-        for (int i = 0; i < allConnections.length; i++) {
-            Connection conn = allConnections[i];
+        for (int i = 0; i < writeConnections.length; i++) {
+            Connection conn = writeConnections[i];
             if (conn == null) continue;
 
             boolean pg = DatabaseConnection.isPostgresConnection(conn);
             String sql = pg ? SQL_DELETE_POSTGRES : SQL_DELETE_MSSQL;
-            String siteName = "TP" + (i + 1);
+            String siteName = "TP" + (i + 1) + " (Update Server)";
 
             try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
                 pstmt.setString(1, maNV);
@@ -324,19 +346,27 @@ public class StaffDAO {
                 if (rows > 0) {
                     boolean usingBackup = (i == 0 && DatabaseConnection.isTP1UsingBackup()) ||
                                           (i == 1 && DatabaseConnection.isTP2UsingBackup());
-                    System.out.println("✅ Xóa nhân viên " + maNV + " tại " + siteName
-                            + (usingBackup ? " (⚡BACKUP)" : ""));
+                    System.out.println("✅ [UPDATE SERVER] Xóa nhân viên " + maNV + " tại " + siteName);
+
                     if (usingBackup) {
                         String json = BackupSyncService.buildJsonData("maNV", maNV);
                         BackupSyncService.logToChangelog(conn, "nhanvien", "DELETE", json, pg);
+                    } else if (i < 2) {
+                        Connection backup = (i == 0) ? DatabaseConnection.getSV4Connection() : DatabaseConnection.getSV5Connection();
+                        if (backup != null) {
+                            boolean bPg = DatabaseConnection.isPostgresConnection(backup);
+                            String bSql = bPg ? SQL_DELETE_POSTGRES : SQL_DELETE_MSSQL;
+                            try (PreparedStatement pb = backup.prepareStatement(bSql)) {
+                                pb.setString(1, maNV);
+                                pb.executeUpdate();
+                                System.out.println("  🔄 [READ-ONLY SERVER] Đã xóa tức thời nhân viên " + maNV);
+                            } catch (SQLException ex) {}
+                        }
                     }
-                    Map<String, Object> logData = new HashMap<>();
-                    logData.put("maNV", maNV);
-                    JsonLogger.log(siteName, "delete", "nhanvien", logData);
                     return true;
                 }
             } catch (SQLException e) {
-                System.err.println("❌ Lỗi xóa nhân viên tại " + siteName + ": " + e.getMessage());
+                System.err.println("❌ Lỗi xóa nhân viên tại " + siteName);
             }
         }
         return false;
@@ -348,8 +378,8 @@ public class StaffDAO {
     public static int getTotalStaffCount(int siteId) {
         int total = 0;
         Connection[] connections = {
-            DatabaseConnection.getTP1Connection(),
-            DatabaseConnection.getTP2Connection(),
+            DatabaseConnection.getTP1ReadConnection(),
+            DatabaseConnection.getTP2ReadConnection(),
             DatabaseConnection.getTP3Connection()
         };
         for (int i = 0; i < connections.length; i++) {
