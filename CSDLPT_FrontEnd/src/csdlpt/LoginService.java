@@ -15,6 +15,16 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class LoginService {
 
+    static {
+        // Nạp Driver một lần duy nhất để tăng tốc các lần kết nối sau
+        try {
+            Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+            Class.forName("org.postgresql.Driver");
+        } catch (ClassNotFoundException e) {
+            System.err.println("⚠️ Lỗi nạp Driver JDBC: " + e.getMessage());
+        }
+    }
+
     private static final ExecutorService executor = Executors.newFixedThreadPool(5);
 
     /**
@@ -24,11 +34,11 @@ public class LoginService {
      */
     private static String buildLoginSQL(boolean isPostgres) {
         if (isPostgres) {
-            // PostgreSQL: tên cột lowercase
-            return "SELECT manv, hoten, macn, role FROM nhanvien WHERE manv = ? AND password = ?";
+            // PostgreSQL: bảng users, cột manv
+            return "SELECT manv, role FROM users WHERE manv = ? AND password = ?";
         } else {
-            // MSSQL: tên cột mixed case
-            return "SELECT maNV, hoten, maCN, role FROM nhanvien WHERE maNV = ? AND password = ?";
+            // MSSQL: bảng Users, cột MaNV
+            return "SELECT MaNV, Role FROM Users WHERE MaNV = ? AND [Password] = ?";
         }
     }
 
@@ -38,16 +48,15 @@ public class LoginService {
     private static Map<String, String> readUserFromRS(ResultSet rs, boolean isPostgres, String siteName) throws SQLException {
         Map<String, String> user = new HashMap<>();
         if (isPostgres) {
-            user.put("maNV",  rs.getString("manv"));
-            user.put("tenNV", rs.getString("hoten"));
-            user.put("maCN",  rs.getString("macn"));
-            user.put("role",  rs.getString("role"));
+            user.put("maNV", rs.getString("manv"));
+            user.put("role", rs.getString("role"));
         } else {
-            user.put("maNV",  rs.getString("maNV"));
-            user.put("tenNV", rs.getString("hoten"));
-            user.put("maCN",  rs.getString("maCN"));
-            user.put("role",  rs.getString("role"));
+            user.put("maNV", rs.getString("MaNV"));
+            user.put("role", rs.getString("Role"));
         }
+        // Vì bảng Users phân tán không có hoten/maCN (để nhẹ), 
+        // ta có thể join sang nhanvien hoặc lấy sau nếu cần.
+        // Ở đây tạm thời gán site name để biết login ở đâu.
         user.put("site", siteName);
         return user;
     }
@@ -59,86 +68,116 @@ public class LoginService {
         System.out.println("⏳ Đang xác thực song song trên các Site...");
         long startTime = System.currentTimeMillis();
 
-        // Lấy connections (tự động failover bên trong)
-        Connection[] connections = new Connection[3];
-        String[] siteNames = new String[3];
-        boolean[] isPostgres = new boolean[3];
-
-        // Lấy song song
-        CompletableFuture<Void>[] connTasks = new CompletableFuture[3];
-        for (int i = 0; i < 3; i++) {
-            final int idx = i;
-            connTasks[i] = CompletableFuture.runAsync(() -> {
-                try {
-                    Connection conn;
-                    if (idx == 0)      conn = DatabaseConnection.getTP1Connection();
-                    else if (idx == 1) conn = DatabaseConnection.getTP2Connection();
-                    else               conn = DatabaseConnection.getTP3Connection();
-
-                    connections[idx]  = conn;
-                    siteNames[idx]    = DatabaseConnection.getSiteName(idx);
-                    isPostgres[idx]   = DatabaseConnection.isPostgresConnection(conn);
-                } catch (Exception e) {
-                    System.err.println("⚠️ Không lấy được connection site " + idx);
-                }
-            }, executor);
-        }
-
-        // Chờ tất cả connections sẵn sàng (tối đa 8 giây)
-        try {
-            CompletableFuture.allOf(connTasks).get(8, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (Exception e) {
-            // Một số connection có thể không lấy được, tiếp tục với những cái có
-        }
-
+        // Chạy song song 3 Site
         AtomicReference<Map<String, String>> foundUser = new AtomicReference<>(null);
         List<CompletableFuture<Void>> loginTasks = new ArrayList<>();
-
         for (int i = 0; i < 3; i++) {
             final int idx = i;
-            final Connection conn = connections[i];
-            final String siteName = siteNames[i] != null ? siteNames[i] : "Site " + (i+1);
-            final boolean pg = isPostgres[i];
-
-            if (conn == null) continue;
-
             CompletableFuture<Void> task = CompletableFuture.runAsync(() -> {
+                // Nếu đã thấy user ở một thread khác thì dừng luôn
                 if (foundUser.get() != null) return;
 
-                String sql = buildLoginSQL(pg);
+                String siteName = DatabaseConnection.getSiteName(idx);
+                try {
+                    // 1. Kết nối tới Site (Tự động timeout bên trong nếu server sập)
+                    Connection conn = DatabaseConnection.getUsersCsdlPtConnection(idx);
+                    if (conn == null || foundUser.get() != null) return;
 
-                try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-                    pstmt.setString(1, username);
-                    pstmt.setString(2, password);
-
-                    try (ResultSet rs = pstmt.executeQuery()) {
-                        if (rs.next() && foundUser.get() == null) {
-                            Map<String, String> user = readUserFromRS(rs, pg, siteName);
-                            if (foundUser.compareAndSet(null, user)) {
-                                System.out.println("✅ Đã tìm thấy user tại " + siteName
-                                        + " trong " + (System.currentTimeMillis() - startTime) + "ms");
-                            }
-                        }
+                    boolean pg = (idx == 2 && !DatabaseConnection.isTP3UsingBackup());
+                    
+                    // 2. Kiểm tra bảng Users mới (Nhân bản toàn phần)
+                    if (checkUserInManagementTable(conn, username, password, idx, siteName, pg, foundUser)) {
+                        return; // Đã tìm thấy
                     }
-                } catch (SQLException e) {
-                    System.err.println("⚠️ Lỗi query tại " + siteName + ": " + e.getMessage());
+
+                    // 3. Fallback: Kiểm tra bảng nhanvien cũ (Nếu Users trống hoặc chưa di trú)
+                    if (foundUser.get() == null) {
+                        checkLegacyNhanVien(username, password, idx, siteName, pg, foundUser);
+                    }
+                } catch (Exception e) {
+                    System.err.println("⚠️ Site " + siteName + " bỏ qua do lỗi: " + e.getMessage());
                 }
             }, executor);
             loginTasks.add(task);
         }
 
-        // Chờ tối đa 10 giây hoặc đến khi tìm thấy
-        long deadline = System.currentTimeMillis() + 10000;
+        // Đợi tối đa 6 giây hoặc đến khi thấy kết quả đầu tiên
+        long deadline = System.currentTimeMillis() + 6000;
         while (System.currentTimeMillis() < deadline && foundUser.get() == null) {
+            if (foundUser.get() != null) break;
             boolean allDone = loginTasks.stream().allMatch(CompletableFuture::isDone);
             if (allDone) break;
-            try { Thread.sleep(100); } catch (InterruptedException e) { break; }
+            try { Thread.sleep(50); } catch (InterruptedException e) { break; }
         }
 
         if (foundUser.get() != null) return foundUser.get();
 
         System.out.println("❌ Không tìm thấy tài khoản sau " + (System.currentTimeMillis() - startTime) + "ms");
         return null;
+    }
+
+    /**
+     * Kiểm tra ở bảng nhanvien cũ (Dùng trong quá trình chuyển đổi)
+     */
+    private static void checkLegacyNhanVien(String username, String password, int idx, String siteName, boolean pg, AtomicReference<Map<String, String>> foundUser) {
+        try {
+            Connection conn;
+            if (idx == 0)      conn = DatabaseConnection.getTP1Connection();
+            else if (idx == 1) conn = DatabaseConnection.getTP2Connection();
+            else               conn = DatabaseConnection.getTP3Connection();
+
+            if (conn == null) return;
+
+            String sql = pg 
+                ? "SELECT manv, hoten, macn, role FROM nhanvien WHERE manv = ? AND password = ?"
+                : "SELECT maNV, hoten, maCN, role FROM nhanvien WHERE maNV = ? AND password = ?";
+
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setString(1, username);
+                pstmt.setString(2, password);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    if (rs.next() && foundUser.get() == null) {
+                        Map<String, String> user = new HashMap<>();
+                        if (pg) {
+                            user.put("maNV", rs.getString("manv"));
+                            user.put("role", rs.getString("role"));
+                        } else {
+                            user.put("maNV", rs.getString("maNV"));
+                            user.put("role", rs.getString("role"));
+                        }
+                        user.put("site", siteName + " (Legacy)");
+                        if (foundUser.compareAndSet(null, user)) {
+                            System.out.println("✅ Đã tìm thấy user (Legacy Fallback) tại " + siteName);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Lỗi fallback bỏ qua
+        }
+    }
+
+    /**
+     * Kiểm tra User trong bảng quản trị nhân bản
+     */
+    private static boolean checkUserInManagementTable(Connection conn, String username, String password, int idx, String siteName, boolean pg, AtomicReference<Map<String, String>> foundUser) {
+        String sql = buildLoginSQL(pg);
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            pstmt.setString(2, password);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next() && foundUser.get() == null) {
+                    Map<String, String> user = readUserFromRS(rs, pg, siteName);
+                    if (foundUser.compareAndSet(null, user)) {
+                        System.out.println("✅ Đã tìm thấy user (trong Users table) tại " + siteName);
+                        return true;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            // Có thể bảng Users chưa được khởi tạo ở site này, bỏ qua để fallback
+        }
+        return false;
     }
 
     public static boolean checkIsAdmin(Map<String, String> user) {

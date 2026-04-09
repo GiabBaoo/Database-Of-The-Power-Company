@@ -106,7 +106,7 @@ public class BackupSyncService {
             }
 
             if (changes.isEmpty()) {
-                System.out.println("✨ Không có dữ liệu tồn đọng từ phiên Failover trước đó trên SV4.");
+                // System.out.println("ℹ️ Không có dữ liệu tồn đọng từ phiên Failover trước đó trên SV4.");
                 tp1Conn.close();
                 return;
             }
@@ -174,7 +174,7 @@ public class BackupSyncService {
             }
 
             if (changes.isEmpty()) {
-                System.out.println("✨ Không có dữ liệu tồn đọng từ phiên Failover trước đó trên SV5.");
+                // System.out.println("ℹ️ Không có dữ liệu tồn đọng từ phiên Failover trước đó trên SV5.");
                 tp2Conn.close();
                 return;
             }
@@ -201,6 +201,140 @@ public class BackupSyncService {
         }
         
         System.out.println("🔄 ========== KẾT THÚC ĐỒNG BỘ SV5 → TP2 ==========\n");
+    }
+
+    /**
+     * Đồng bộ dữ liệu từ SV6 (MSSQL) → TP3 (PostgreSQL)
+     * Replay từ MSSQL lên PostgreSQL
+     */
+    public static void syncBackupToTP3() {
+        System.out.println("\n🔄 ========== BẮT ĐẦU ĐỒNG BỘ SV6 → TP3 ==========");
+        
+        Connection sv6Conn = DatabaseConnection.getSV6Connection();
+        Connection tp3Conn = DatabaseConnection.getTP3DirectConnection();
+        
+        if (sv6Conn == null) {
+            System.err.println("❌ Không kết nối được SV6 để đọc changelog");
+            return;
+        }
+        if (tp3Conn == null) {
+            System.err.println("❌ Không kết nối được TP3 để sync");
+            return;
+        }
+
+        try {
+            // SV6 là MSSQL
+            String selectSql = "SELECT id, table_name, operation, row_data FROM _backup_changelog WHERE synced = 0 ORDER BY id ASC";
+            List<Map<String, String>> changes = new ArrayList<>();
+            
+            try (Statement stmt = sv6Conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(selectSql)) {
+                while (rs.next()) {
+                    Map<String, String> change = new HashMap<>();
+                    change.put("id", rs.getString("id"));
+                    change.put("table_name", rs.getString("table_name"));
+                    change.put("operation", rs.getString("operation"));
+                    change.put("row_data", rs.getString("row_data"));
+                    changes.add(change);
+                }
+            }
+
+            if (changes.isEmpty()) {
+                // System.out.println("ℹ️ Không có dữ liệu tồn đọng từ phiên Failover trước đó trên SV6.");
+                tp3Conn.close();
+                return;
+            }
+
+            System.out.println("📋 Tìm thấy " + changes.size() + " thay đổi cần đồng bộ");
+
+            int successCount = 0;
+            for (Map<String, String> change : changes) {
+                // Đích là TP3 (PostgreSQL) -> targetIsPostgres = true
+                boolean success = replayChange(tp3Conn, change, true);
+                if (success) {
+                    // Mark synced trên SV6 (MSSQL) -> pgSource = false
+                    markSynced(sv6Conn, change.get("id"), false);
+                    successCount++;
+                }
+            }
+
+            System.out.println("✅ Đồng bộ hoàn tất: " + successCount + "/" + changes.size() + " thay đổi");
+            tp3Conn.close();
+
+        } catch (SQLException e) {
+            System.err.println("❌ Lỗi đồng bộ SV6 → TP3: " + e.getMessage());
+        }
+        
+        System.out.println("🔄 ========== KẾT THÚC ĐỒNG BỘ SV6 → TP3 ==========\n");
+    }
+
+    /**
+     * Đồng bộ bù cho các bảng quản trị (Nhân bản toàn phần)
+     * Chạy trên tất cả các Site để kiểm tra xem có lệnh nào chưa gửi đi được không
+     */
+    public static void syncManagementChanges() {
+        System.out.println("\n🌐 ========== BẮT ĐẦU ĐỒNG BỘ QUẢN TRỊ (Full Replication Sync) ==========");
+        
+        for (int i = 0; i < 3; i++) {
+            Connection sourceConn = DatabaseConnection.getUsersCsdlPtConnection(i);
+            if (sourceConn == null) continue;
+
+            System.out.println("🔍 Đang kiểm tra lệnh tồn tại Site " + (i+1) + "...");
+            
+            try {
+                // Đọc các lệnh chưa sync (Xử lý khác nhau giữa MSSQL và Postgres)
+                boolean isPG = (i == 2);
+                String selectSql = isPG 
+                    ? "SELECT id, target_site, table_name, operation, row_data FROM _management_changelog WHERE synced = false"
+                    : "SELECT id, target_site, table_name, operation, row_data FROM _management_changelog WHERE synced = 0";
+                List<Map<String, String>> pending = new ArrayList<>();
+                try (Statement stmt = sourceConn.createStatement();
+                     ResultSet rs = stmt.executeQuery(selectSql)) {
+                    while (rs.next()) {
+                        Map<String, String> m = new HashMap<>();
+                        m.put("id", rs.getString("id"));
+                        m.put("target_site", rs.getString("target_site"));
+                        m.put("table_name", rs.getString("table_name"));
+                        m.put("operation", rs.getString("operation"));
+                        m.put("row_data", rs.getString("row_data"));
+                        pending.add(m);
+                    }
+                }
+
+                if (pending.isEmpty()) continue;
+
+                System.out.println("📋 Phát hiện " + pending.size() + " lệnh quản trị chưa đồng bộ tại Site " + (i+1));
+                
+                for (Map<String, String> change : pending) {
+                    int targetSite = Integer.parseInt(change.get("target_site")) - 1;
+                    Connection targetConn = DatabaseConnection.getUsersCsdlPtConnection(targetSite);
+                    
+                    if (targetConn != null) {
+                        boolean targetIsPG = (targetSite == 2);
+                        boolean success = replayChange(targetConn, change, targetIsPG);
+                        if (success) {
+                            markManagementSynced(sourceConn, change.get("id"), isPG);
+                            System.out.println("✅ Đã bù lệnh " + change.get("id") + " từ Site " + (i+1) + " tới Site " + (targetSite+1));
+                        }
+                    }
+                }
+
+            } catch (SQLException e) {
+                System.err.println("❌ Lỗi sync quản trị tại Site " + (i+1) + ": " + e.getMessage());
+            }
+        }
+        
+        System.out.println("🌐 ========== KẾT THÚC ĐỒNG BỘ QUẢN TRỊ ==========\n");
+    }
+
+    private static void markManagementSynced(Connection conn, String id, boolean isPG) throws SQLException {
+        String sql = isPG 
+            ? "UPDATE _management_changelog SET synced = true WHERE id = ?"
+            : "UPDATE _management_changelog SET synced = 1 WHERE id = ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, Integer.parseInt(id));
+            pstmt.executeUpdate();
+        }
     }
 
     /**
@@ -476,6 +610,55 @@ public class BackupSyncService {
     }
 
     /**
+     * Copy toàn bộ dữ liệu từ TP3 → SV6 (PostgreSQL → MSSQL)
+     */
+    public static boolean replicateTP3ToSV6() {
+        System.out.println("\n📦 ========== REPLICATE TP3 → SV6 ==========");
+        Connection tp3 = DatabaseConnection.getTP3DirectConnection();
+        Connection sv6 = DatabaseConnection.getSV6Connection();
+
+        if (tp3 == null) {
+            System.err.println("❌ Không thể kết nối tới TP3 Direct!");
+            return false;
+        }
+        if (sv6 == null) {
+            System.err.println("❌ Không thể kết nối tới SV6 (Backup TP3)!");
+            return false;
+        }
+
+        try {
+            // Xóa dữ liệu cũ trên SV6 (MSSQL)
+            String[] deleteOrder = {"hoadon", "hopdong", "khachhang", "nhanvien", "chinhanh"};
+            for (String table : deleteOrder) {
+                try (Statement stmt = sv6.createStatement()) {
+                    stmt.executeUpdate("DELETE FROM " + table);
+                } catch (SQLException ignored) {}
+            }
+
+            // Copy từng bảng (PostgreSQL → MSSQL)
+            replicateTablePostgresToMssql(tp3, sv6, "chinhanh", "macn, tencn, thanhpho");
+            replicateTablePostgresToMssql(tp3, sv6, "nhanvien", "manv, hoten, macn, password, role");
+            replicateTablePostgresToMssql(tp3, sv6, "khachhang", "makh, tenkh, macn");
+            replicateTablePostgresToMssql(tp3, sv6, "hopdong", "sohd, makh, sodienke, kwdinhmuc, dongiakw");
+            replicateTablePostgresToMssql(tp3, sv6, "hoadon", "sohdn, thang, nam, sohd, manv, sotien");
+
+            // Xóa changelog cũ
+            try (Statement stmt = sv6.createStatement()) {
+                stmt.executeUpdate("DELETE FROM _backup_changelog");
+            } catch (SQLException ignored) {}
+
+            tp3.close();
+            System.out.println("✅ Replicate TP3 → SV6 hoàn tất!");
+            return true;
+        } catch (SQLException e) {
+            System.err.println("❌ Lỗi replicate TP3 → SV6: " + e.getMessage());
+            return false;
+        } finally {
+            System.out.println("📦 ==========================================\n");
+        }
+    }
+
+    /**
      * Copy dữ liệu bảng từ MSSQL → MSSQL
      */
     private static void replicateTableMssqlToMssql(Connection source, Connection target, String tableName, String columns) {
@@ -564,6 +747,52 @@ public class BackupSyncService {
             System.out.println("  📋 " + tableName + ": " + count + " bản ghi");
         } catch (SQLException e) {
             System.err.println("  ❌ Lỗi replicate " + tableName + " (MSSQL→PG): " + e.getMessage());
+        }
+    }
+
+    /**
+     * Copy dữ liệu bảng từ PostgreSQL → MSSQL
+     */
+    private static void replicateTablePostgresToMssql(Connection source, Connection target, String tableName, String columns) {
+        String selectSql = "SELECT " + columns + " FROM " + tableName;
+        int count = 0;
+
+        try (Statement stmt = source.createStatement();
+             ResultSet rs = stmt.executeQuery(selectSql)) {
+            
+            ResultSetMetaData meta = rs.getMetaData();
+            int colCount = meta.getColumnCount();
+
+            while (rs.next()) {
+                StringBuilder vals = new StringBuilder();
+                for (int i = 1; i <= colCount; i++) {
+                    if (i > 1) vals.append(", ");
+                    String val = rs.getString(i);
+                    if (val == null) {
+                        vals.append("NULL");
+                    } else {
+                        int colType = meta.getColumnType(i);
+                        if (colType == Types.INTEGER || colType == Types.FLOAT || 
+                            colType == Types.DOUBLE || colType == Types.DECIMAL ||
+                            colType == Types.NUMERIC || colType == Types.BIGINT ||
+                            colType == Types.SMALLINT || colType == Types.REAL) {
+                            vals.append(val);
+                        } else {
+                            // Target là MSSQL nên thêm N prefix
+                            vals.append("N'").append(val.replace("'", "''")).append("'");
+                        }
+                    }
+                }
+
+                String insertSql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + vals + ")";
+                try (Statement insertStmt = target.createStatement()) {
+                    insertStmt.executeUpdate(insertSql);
+                    count++;
+                }
+            }
+            System.out.println("  📋 " + tableName + ": " + count + " bản ghi");
+        } catch (SQLException e) {
+            System.err.println("  ❌ Lỗi replicate " + tableName + " (PG→MSSQL): " + e.getMessage());
         }
     }
 

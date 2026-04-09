@@ -33,11 +33,24 @@ public class DatabaseInitializer {
         // Khởi tạo Server 5 (Backup TP2) - Xóa dữ liệu + tạo changelog table
         runScriptOnConnection(DatabaseConnection.getSV5Connection(), "../scripts/setup_server5_backup_tp2.sql", "SERVER 5 (BACKUP TP2)");
 
+        // Khởi tạo Server 6 (Backup TP3) - Xóa dữ liệu + tạo changelog table (PostgreSQL)
+        runScriptOnConnection(DatabaseConnection.getSV6Connection(), "../scripts/setup_server6_backup_tp3.sql", "SERVER 6 (BACKUP TP3)");
+
+        // ====== KHỞI TẠO QUẢN TRỊ (USERSCSDLPT) ======
+        System.out.println("\n🔐 KHỞI TẠO DATABASE QUẢN TRỊ (UsersCsdlPt)...");
+        runScriptOnConnection(DatabaseConnection.getUsersCsdlPtConnection(0), "../scripts/setup_userscsdlpt_tp1.sql", "USERS_CSDLPT SITE 1");
+        runScriptOnConnection(DatabaseConnection.getUsersCsdlPtConnection(1), "../scripts/setup_userscsdlpt_tp2.sql", "USERS_CSDLPT SITE 2");
+        runScriptOnConnection(DatabaseConnection.getUsersCsdlPtConnection(2), "../scripts/setup_userscsdlpt_tp3.sql", "USERS_CSDLPT SITE 3");
+
         // ====== REPLICATE DATA VÀO BACKUP ======
         System.out.println("\n📦 ĐỒNG BỘ DỮ LIỆU VÀO BACKUP SERVERS...");
         
         boolean tp1Ok = BackupSyncService.replicateTP1ToSV4();
         boolean tp2Ok = BackupSyncService.replicateTP2ToSV5();
+        boolean tp3Ok = BackupSyncService.replicateTP3ToSV6();
+
+        // ====== TẠO DỮ LIỆU MẪU ======
+        UserDAO.seedInitialData();
 
         System.out.println("\n✅ QUÁ TRÌNH KHỞI TẠO HOÀN TẤT!");
         System.out.println("📋 Tóm tắt trạng thái:");
@@ -45,8 +58,9 @@ public class DatabaseInitializer {
         printStatus("TP1 (SV1 Hà Nội)", DatabaseConnection.getTP1Connection() != null);
         printStatus("TP2 (SV2 Đà Nẵng)", DatabaseConnection.getTP2Connection() != null);
         printStatus("TP3 (SV3 TP.HCM)", DatabaseConnection.getTP3Connection() != null);
-        printStatus("Sync SV1 -> SV4 (Backup)", tp1Ok);
-        printStatus("Sync SV2 -> SV5 (Backup)", tp2Ok);
+        printStatus("Sync TP1 -> SV4 (Backup)", tp1Ok);
+        printStatus("Sync TP2 -> SV5 (Backup)", tp2Ok);
+        printStatus("Sync TP3 -> SV6 (Backup)", tp3Ok);
 
         if (!tp1Ok || !tp2Ok) {
             System.out.println("\n⚠️  CẢNH BÁO: Quá trình đồng bộ dữ liệu vào Backup chưa hoàn tất.");

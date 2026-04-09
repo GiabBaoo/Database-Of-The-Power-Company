@@ -10,6 +10,7 @@ import java.awt.FlowLayout;
 import java.util.List;
 import java.util.Map;
 import javax.swing.BorderFactory;
+import java.util.concurrent.CompletableFuture;
 import javax.swing.Timer;
 import javax.swing.table.DefaultTableModel;
 
@@ -66,23 +67,27 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
     }
 
     /**
-     * Khởi tạo tiến trình tải dữ liệu ngầm
+     * Khởi tạo tiến trình tải dữ liệu ngầm - CHỈ nạp dữ liệu Tổng Quan
      */
     private void startAsyncDataLoading() {
-        // Hiển thị trạng thái đang tải
-        if (lblTotalStaff != null) lblTotalStaff.setText("Đang tải...");
-        if (lblTotalBranch != null) lblTotalBranch.setText("Đang tải...");
-        if (lblTotalBills != null) lblTotalBills.setText("Đang tải...");
+        // Hiển thị trạng thái đang tải ban đầu
+        if (lblTotalStaff != null) lblTotalStaff.setText("Đang tính toán...");
+        if (lblTotalBranch != null) lblTotalBranch.setText("Đang tính toán...");
+        if (lblTotalBills != null) lblTotalBills.setText("Đang tính toán...");
 
+        // CHUYỂN TOÀN BỘ SANG CHẠY SONG SONG
         new Thread(() -> {
             try {
-                System.out.println("⏳ Đang tải dữ liệu nền...");
-                loadDashboardData();
-                loadStaffData();
-                loadBranchData();
-                loadCustomerData();
-                loadContractData();
-                System.out.println("✅ Đã nạp xong dữ liệu khởi tạo.");
+                System.out.println("🚀 Bắt đầu nạp Dashboard siêu tốc...");
+                loadDashboardData(); // Hàm này sẽ tự chạy song song bên trong
+                
+                // Trì hoãn việc đồng bộ quản trị 30 giây để không gây lag lúc vừa vào App
+                new javax.swing.Timer(30000, evt -> {
+                    System.out.println("🔄 Bắt đầu chạy đồng bộ quản trị định kỳ...");
+                    CompletableFuture.runAsync(() -> BackupSyncService.syncManagementChanges());
+                }).start();
+                
+                System.out.println("✅ Dashboard đã sẵn sàng.");
             } catch (Exception e) {
                 System.err.println("❌ Lỗi khi tải dữ liệu nền: " + e.getMessage());
             }
@@ -204,7 +209,23 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
             loadContractData();
         });
 
-        javax.swing.JButton[] sideButtons = {btnTongQuan, btnQuanLyChiNhanh, btnQuanLyNhanVien, btnKhachHang, btnHopDong, btnTruyVan};
+        btnUserManagement = new javax.swing.JButton("👥 Quản Lý Users");
+        btnHistoryManagement = new javax.swing.JButton("📋 Lịch Sử Công Tác");
+        btnSearchUser = new javax.swing.JButton("Tìm Kiếm");
+        btnSearchHistory = new javax.swing.JButton("Tìm kiếm");
+
+        btnUserManagement.addActionListener(evt -> {
+            CardLayout cl = (CardLayout)(contentPanel.getLayout());
+            cl.show(contentPanel, "QuanLyUsers");
+            loadUsersData();
+        });
+        btnHistoryManagement.addActionListener(evt -> {
+            CardLayout cl = (CardLayout)(contentPanel.getLayout());
+            cl.show(contentPanel, "LichSuCongTac");
+            loadHistoryData();
+        });
+
+        javax.swing.JButton[] sideButtons = {btnTongQuan, btnQuanLyChiNhanh, btnQuanLyNhanVien, btnKhachHang, btnHopDong, btnUserManagement, btnHistoryManagement, btnTruyVan};
         for (javax.swing.JButton btn : sideButtons) {
             btn.setFocusPainted(false);
             btn.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 14));
@@ -278,10 +299,60 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         contractManagementPanel.add(new javax.swing.JScrollPane(tblContracts), java.awt.BorderLayout.CENTER);
         contentPanel.add(contractManagementPanel, "QuanLyHopDong");
         
-        btnSearchContract.addActionListener(evt -> loadContractData(txtSearchContract.getText().trim()));
-        btnAddContract.addActionListener(evt -> btnAddContractActionPerformed(evt));
-        btnEditContract.addActionListener(evt -> btnEditContractActionPerformed(evt));
         btnDeleteContract.addActionListener(evt -> btnDeleteContractActionPerformed(evt));
+        
+        // Initialize Users Management Panel (Read-only)
+        userManagementPanel = new javax.swing.JPanel(new java.awt.BorderLayout());
+        javax.swing.JPanel topUserPanel = new javax.swing.JPanel(new java.awt.BorderLayout());
+        javax.swing.JPanel userControls = new javax.swing.JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 15, 10));
+        txtSearchUser = new javax.swing.JTextField(15);
+        javax.swing.JButton btnMigrate = new javax.swing.JButton("🌐 Di trú từ NV cũ (Full Sync)");
+        btnMigrate.addActionListener(evt -> {
+            int confirm = javax.swing.JOptionPane.showConfirmDialog(this, 
+                "Hệ thống sẽ chép toàn bộ nhân viên cũ sang bảng Users mới trên cả 3 Site.\nBạn có chắc chắn muốn thực hiện?", 
+                "Xác nhận Di trú", javax.swing.JOptionPane.YES_NO_OPTION);
+            if (confirm == javax.swing.JOptionPane.YES_OPTION) {
+                new Thread(() -> {
+                    UserDAO.migrateLegacyUsers();
+                    javax.swing.JOptionPane.showMessageDialog(this, "Di trú hoàn tất! Tài khoản đã được nhân bản sang 3 Site.");
+                    loadUsersData();
+                }).start();
+            }
+        });
+        
+        userControls.add(new javax.swing.JLabel("Tìm theo MaNV/Email:"));
+        userControls.add(txtSearchUser);
+        userControls.add(btnSearchUser);
+        userControls.add(new javax.swing.JSeparator(javax.swing.SwingConstants.VERTICAL));
+        userControls.add(btnMigrate);
+        
+        tblUsers = new javax.swing.JTable();
+        tblUsers.setRowHeight(28);
+        topUserPanel.add(createFilterToolbar(), java.awt.BorderLayout.NORTH);
+        topUserPanel.add(userControls, java.awt.BorderLayout.SOUTH);
+        userManagementPanel.add(topUserPanel, java.awt.BorderLayout.NORTH);
+        userManagementPanel.add(new javax.swing.JScrollPane(tblUsers), java.awt.BorderLayout.CENTER);
+        contentPanel.add(userManagementPanel, "QuanLyUsers");
+
+        btnSearchUser.addActionListener(evt -> loadUsersData(txtSearchUser.getText().trim()));
+
+        // Initialize History Management Panel (Read-only)
+        historyManagementPanel = new javax.swing.JPanel(new java.awt.BorderLayout());
+        javax.swing.JPanel topHistoryPanel = new javax.swing.JPanel(new java.awt.BorderLayout());
+        javax.swing.JPanel historyControls = new javax.swing.JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 15, 10));
+        txtSearchHistory = new javax.swing.JTextField(15);
+        btnSearchHistory = new javax.swing.JButton("Tìm Lịch Sử (MaNV)");
+        historyControls.add(new javax.swing.JLabel("Mã NV:"));
+        historyControls.add(txtSearchHistory);
+        historyControls.add(btnSearchHistory);
+        
+        topHistoryPanel.add(historyControls, java.awt.BorderLayout.CENTER);
+        tblHistory = new javax.swing.JTable();
+        historyManagementPanel.add(topHistoryPanel, java.awt.BorderLayout.NORTH);
+        historyManagementPanel.add(new javax.swing.JScrollPane(tblHistory), java.awt.BorderLayout.CENTER);
+        contentPanel.add(historyManagementPanel, "LichSuCongTac");
+        
+        btnSearchHistory.addActionListener(evt -> loadHistoryData(txtSearchHistory.getText().trim()));
         
         tblContracts.setRowHeight(28);
         tblCustomers.setRowHeight(28);
@@ -1232,43 +1303,54 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
         // TODO add your handling code here:
     }//GEN-LAST:event_txtSearchSaffActionPerformed
 
-    /**
-     * Load dữ liệu dashboard (Tổng quan)
-     */
     private void loadDashboardData() {
-        // Cập nhật các thẻ tóm tắt
-        int totalStaff = StaffDAO.getTotalStaffCount(currentSiteId);
-        int totalBranches = BranchDAO.getTotalBranchesCount(currentSiteId);
-        int totalBills = BillDAO.getTotalBillsCount(currentSiteId);
+        System.out.println("📊 Đang truy vấn thống kê song song...");
         
-        List<Map<String, String>> staffList = StaffDAO.getAllStaff(currentSiteId);
-        DefaultTableModel model = new DefaultTableModel();
-        model.setColumnIdentifiers(new String[]{"Mã NV", "Tên NV", "Chi Nhánh", "Mật khẩu", "Vai trò", "Cơ sở"});
-        for (Map<String, String> staff : staffList) {
-            // Lọc ra admin tổng nếu người đang xem là admin chi nhánh
-            if (!SessionManager.isGlobalAdmin() && "admin".equalsIgnoreCase(staff.get("maNV"))) {
-                continue;
+        // 1. Chạy song song các phép đếm (Counts)
+        CompletableFuture<Integer> staffCountFuture = CompletableFuture.supplyAsync(() -> StaffDAO.getTotalStaffCount(currentSiteId));
+        CompletableFuture<Integer> branchCountFuture = CompletableFuture.supplyAsync(() -> BranchDAO.getTotalBranchesCount(currentSiteId));
+        CompletableFuture<Integer> billCountFuture = CompletableFuture.supplyAsync(() -> BillDAO.getTotalBillsCount(currentSiteId));
+        CompletableFuture<List<Map<String, String>>> staffListFuture = CompletableFuture.supplyAsync(() -> StaffDAO.getAllStaff(currentSiteId));
+
+        // Cập nhật từng UI element ngay khi có kết quả (Không đợi nhau)
+        staffCountFuture.thenAccept(count -> {
+            javax.swing.SwingUtilities.invokeLater(() -> lblTotalStaff.setText("Nhân viên: " + count));
+        });
+        
+        branchCountFuture.thenAccept(count -> {
+            javax.swing.SwingUtilities.invokeLater(() -> lblTotalBranch.setText("Chi nhánh: " + count));
+        });
+        
+        billCountFuture.thenAccept(count -> {
+            javax.swing.SwingUtilities.invokeLater(() -> lblTotalBills.setText("Hóa đơn: " + count));
+        });
+
+        // Khi có danh sách nhân viên thì cập nhật bảng Preview
+        staffListFuture.thenAccept(staffList -> {
+            DefaultTableModel model = new DefaultTableModel();
+            model.setColumnIdentifiers(new String[]{"Mã NV", "Tên NV", "Chi Nhánh", "Vai trò", "Cơ sở"});
+            
+            for (Map<String, String> staff : staffList) {
+                if (!SessionManager.isGlobalAdmin() && "admin".equalsIgnoreCase(staff.get("maNV"))) continue;
+                
+                model.addRow(new Object[]{
+                    staff.get("maNV"),
+                    staff.get("tenNV"),
+                    staff.get("maCN"),
+                    staff.get("role"),
+                    staff.getOrDefault("site", "N/A")
+                });
             }
             
-            String maskedPass = staff.get("password") != null ? "********" : "";
-            model.addRow(new Object[]{
-                staff.get("maNV"),
-                staff.get("tenNV"),
-                staff.get("maCN"),
-                maskedPass,
-                staff.get("role"),
-                staff.getOrDefault("site", "N/A")
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                tblDashboardReport.setModel(model);
+                System.out.println("✅ Dashboard: Đã nạp xong danh sách nhân viên.");
             });
-        }
-
-        // Đảm bảo cập nhật giao diện trên EDT
-        javax.swing.SwingUtilities.invokeLater(() -> {
-            lblTotalStaff.setText("Nhân viên: " + totalStaff);
-            lblTotalBranch.setText("Chi nhánh: " + totalBranches);
-            lblTotalBills.setText("Hóa đơn: " + totalBills);
-            tblDashboardReport.setModel(model);
-            System.out.println("✅ Đã cập nhật xong Tổng Quan");
         });
+
+        // Kết hợp tất cả để thông báo hoàn tất (Optionally)
+        CompletableFuture.allOf(staffCountFuture, branchCountFuture, billCountFuture, staffListFuture)
+            .thenRun(() -> System.out.println("✨ Dashboard: Tất cả thống kê đã sẵn sàng."));
     }
 
     /**
@@ -1346,6 +1428,75 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
             tblBranchs.setModel(model);
         });
     }
+
+    private void loadUsersData() {
+        loadUsersData("");
+    }
+
+    private void loadUsersData(String keyword) {
+        if (tblUsers == null) return;
+        
+        CompletableFuture.supplyAsync(() -> {
+            if (keyword != null && !keyword.trim().isEmpty()) {
+                return UserDAO.searchUsers(keyword);
+            } else {
+                return UserDAO.getAllUsers();
+            }
+        }).thenAccept(results -> {
+            DefaultTableModel model = new DefaultTableModel() {
+                @Override
+                public boolean isCellEditable(int row, int column) { return false; }
+            };
+            model.setColumnIdentifiers(new String[]{"Mã NV", "Email", "Vai Trò (App)"});
+            for (Map<String, String> row : results) {
+                model.addRow(new Object[]{
+                    row.get("MaNV"),
+                    row.get("Email"),
+                    row.get("Role")
+                });
+            }
+            javax.swing.SwingUtilities.invokeLater(() -> tblUsers.setModel(model));
+        }).exceptionally(ex -> {
+            System.err.println("❌ Lỗi nạp User: " + ex.getMessage());
+            return null;
+        });
+    }
+
+    private void loadHistoryData() {
+        loadHistoryData("");
+    }
+
+    private void loadHistoryData(String maNV) {
+        if (tblHistory == null) return;
+
+        CompletableFuture.supplyAsync(() -> {
+            if (maNV != null && !maNV.trim().isEmpty()) {
+                return UserDAO.searchHistory(maNV);
+            } else {
+                return UserDAO.getAllHistory();
+            }
+        }).thenAccept(results -> {
+            DefaultTableModel model = new DefaultTableModel() {
+                @Override
+                public boolean isCellEditable(int row, int column) { return false; }
+            };
+            model.setColumnIdentifiers(new String[]{"Mã NV", "Ngày Chuyển", "Từ CN", "Đến CN", "Mã KH"});
+            for (Map<String, String> row : results) {
+                model.addRow(new Object[]{
+                    row.get("MaNV"),
+                    row.get("NgayChuyen"),
+                    row.get("maCNCu"),
+                    row.get("maCNMoi"),
+                    row.get("MaKH")
+                });
+            }
+            javax.swing.SwingUtilities.invokeLater(() -> tblHistory.setModel(model));
+        }).exceptionally(ex -> {
+            System.err.println("❌ Lỗi nạp Lịch sử: " + ex.getMessage());
+            return null;
+        });
+    }
+
 
     private void loadBranchData() {
         loadBranchData("");
@@ -1425,10 +1576,17 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
                 lblTP2Status.setBackground(new Color(10, 60, 10));
             }
 
-            // TP3 (Không có backup, chỉ hiển thị online/offline)
-            lblTP3Status.setText("✅ TP3: Online");
-            lblTP3Status.setForeground(new Color(100, 255, 100));
-            lblTP3Status.setBackground(new Color(10, 60, 10));
+            // TP3
+            boolean tp3Backup = DatabaseConnection.isTP3UsingBackup();
+            if (tp3Backup) {
+                lblTP3Status.setText("⚠️ TP3: BACKUP (SV6)");
+                lblTP3Status.setForeground(new Color(255, 200, 50));
+                lblTP3Status.setBackground(new Color(80, 60, 10));
+            } else {
+                lblTP3Status.setText("✅ TP3: Online");
+                lblTP3Status.setForeground(new Color(100, 255, 100));
+                lblTP3Status.setBackground(new Color(10, 60, 10));
+            }
         });
     }
     public static void main(String args[]) {
@@ -1524,5 +1682,16 @@ public class AdminDashboardFrame extends javax.swing.JFrame {
     private javax.swing.JButton btnAddContract;
     private javax.swing.JButton btnEditContract;
     private javax.swing.JButton btnDeleteContract;
+
+    private javax.swing.JButton btnUserManagement;
+    private javax.swing.JButton btnHistoryManagement;
+    private javax.swing.JPanel userManagementPanel;
+    private javax.swing.JPanel historyManagementPanel;
+    private javax.swing.JTable tblUsers;
+    private javax.swing.JTable tblHistory;
+    private javax.swing.JTextField txtSearchUser;
+    private javax.swing.JTextField txtSearchHistory;
+    private javax.swing.JButton btnSearchUser;
+    private javax.swing.JButton btnSearchHistory;
     // End of variables declaration//GEN-END:variables
 }

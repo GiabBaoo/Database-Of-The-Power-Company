@@ -8,8 +8,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Lớp quản lý kết nối tới cơ sở dữ liệu phân tán + Backup Failover
  * TP1: SQL Server Local (Primary)  → SV4: Somee MSSQL (Backup)
- * TP2: SQL Server Cloud (Primary)  → SV5: Supabase PostgreSQL (Backup)
- * TP3: PostgreSQL (Supabase) - Không có backup
+ * TP2: SQL Server Cloud (Primary)  → SV5: Somee MSSQL (Backup)
+ * TP3: PostgreSQL (Supabase)       → SV6: Somee MSSQL (Backup)
  */
 public class DatabaseConnection {
 
@@ -28,10 +28,25 @@ public class DatabaseConnection {
     private static final String TP3_USER = "postgres.zkfqpkgfrnvjyqezhxzk";
     private static final String TP3_PASS = "Baospaki1234@";
 
-    // User Database (TP2)
+    // User Database (TP2) - Original
     private static final String USER_DB_URL = "jdbc:sqlserver://csdlpt_lab2.mssql.somee.com:1433;databaseName=csdlpt_lab2;encrypt=true;trustServerCertificate=true";
     private static final String USER_DB_USER = "GiaBaoo_SQLLogin_2";
     private static final String USER_DB_PASS = "othksh4wqu";
+
+    // UsersCsdlPt Database (Local TP1)
+    private static final String USERS_CSDLPT_TP1_URL = "jdbc:sqlserver://192.168.56.1:1433;databaseName=UsersCsdlPt;encrypt=false;trustServerCertificate=true";
+    private static final String USERS_CSDLPT_TP1_USER = "sa";
+    private static final String USERS_CSDLPT_TP1_PASS = "123456";
+
+    // UsersCsdlPt Database (Somee TP2) - Dùng chung DB với DienLuc để tránh giới hạn Somee
+    private static final String USERS_CSDLPT_TP2_URL = "jdbc:sqlserver://csdlpt_lab2.mssql.somee.com:1433;databaseName=csdlpt_lab2;encrypt=true;trustServerCertificate=true";
+    private static final String USERS_CSDLPT_TP2_USER = "GiaBaoo_SQLLogin_2";
+    private static final String USERS_CSDLPT_TP2_PASS = "othksh4wqu";
+
+    // UsersCsdlPt Database (Supabase TP3) - Dùng database mặc định 'postgres' của Supabase
+    private static final String USERS_CSDLPT_TP3_URL = "jdbc:postgresql://aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require";
+    private static final String USERS_CSDLPT_TP3_USER = "postgres.zkfqpkgfrnvjyqezhxzk";
+    private static final String USERS_CSDLPT_TP3_PASS = "Baospaki1234@";
 
     // ====== BACKUP SERVERS ======
     
@@ -45,17 +60,25 @@ public class DatabaseConnection {
     private static final String SV5_USER = "NguyennBaoo_SQLLogin_1";
     private static final String SV5_PASS = "fqs8e5v11a";
 
+    // SV6: Somee MSSQL (Backup cho TP3)
+    private static final String SV6_URL = "jdbc:sqlserver://backup_tp3.mssql.somee.com:1433;databaseName=backup_tp3;encrypt=true;trustServerCertificate=true";
+    private static final String SV6_USER = "csdlpt_readonly";
+    private static final String SV6_PASS = "0912029719";
+
     // Connection pools
     private static Connection tp1Connection;
     private static Connection tp2Connection;
     private static Connection tp3Connection;
     private static Connection userDbConnection;
+    private static Connection[] usersCsdlPtConnections = new Connection[3]; // 0: TP1, 1: TP2, 2: TP3
     private static Connection sv4Connection; // Backup TP1
     private static Connection sv5Connection; // Backup TP2
+    private static Connection sv6Connection; // Backup TP3
 
     // ====== FAILOVER STATE ======
     private static volatile boolean tp1UsingBackup = false;
     private static volatile boolean tp2UsingBackup = false;
+    private static volatile boolean tp3UsingBackup = false;
     private static volatile boolean healthCheckStarted = false;
     private static ScheduledExecutorService healthCheckScheduler;
 
@@ -87,6 +110,11 @@ public class DatabaseConnection {
     /** Kiểm tra TP2 có đang dùng backup SV5 hay không */
     public static boolean isTP2UsingBackup() {
         return tp2UsingBackup;
+    }
+
+    /** Kiểm tra TP3 có đang dùng backup SV6 hay không */
+    public static boolean isTP3UsingBackup() {
+        return tp3UsingBackup;
     }
 
     // ====== KẾT NỐI PRIMARY SERVERS ======
@@ -160,7 +188,7 @@ public class DatabaseConnection {
             }
             
             System.err.println("❌ CẢ TP1 VÀ SV4 ĐỀU KHÔNG KẾT NỐI ĐƯỢC!");
-            return null;
+           return null;
         }
     }
 
@@ -234,37 +262,116 @@ public class DatabaseConnection {
     }
 
     /**
-     * Kết nối tới TP3 (PostgreSQL Supabase) - Không có backup
+     * Lấy kết nối dùng để ĐỌC dữ liệu cho cụm 3
+     * Ưu tiên máy chủ Chỉ đọc (SV6), nếu lỗi mới đọc từ TP3
+     */
+    public static Connection getTP3ReadConnection() {
+        Connection sv6 = getSV6Connection();
+        if (sv6 != null) {
+            return sv6;
+        }
+        return getTP3Connection();
+    }
+
+    /**
+     * Lấy kết nối dùng để GHI dữ liệu cho cụm 3
+     * Ưu tiên máy chủ Cập nhật (TP3), nếu sập mới ghi vào SV6
+     */
+    public static Connection getTP3WriteConnection() {
+        return getTP3Connection();
+    }
+
+    /**
+     * Kết nối tới TP3 (PostgreSQL Supabase) có failover
      */
     public static Connection getTP3Connection() {
+        // Nếu đang dùng backup, trả về SV6
+        if (tp3UsingBackup) {
+            Connection sv6 = getSV6Connection();
+            if (sv6 != null) return sv6;
+        }
+
         try {
             if (tp3Connection == null || tp3Connection.isClosed()) {
                 tp3Connection = DriverManager.getConnection(TP3_URL, TP3_USER, TP3_PASS);
                 System.out.println("✅ Kết nối TP3 thành công");
+                
+                // Kích hoạt đồng bộ từ backup nếu có dữ liệu tồn đọng
+                new Thread(() -> {
+                    System.out.println("🔄 Đang kiểm tra dữ liệu đồng bộ từ SV6 → TP3...");
+                    BackupSyncService.syncBackupToTP3();
+                }).start();
+
+                if (tp3UsingBackup) {
+                    System.out.println("🎉 TP3 đã online trở lại!");
+                    tp3UsingBackup = false;
+                }
+            }
+            if (!tp3Connection.isValid(5)) {
+                tp3Connection = null;
+                throw new SQLException("TP3 connection invalid");
             }
             return tp3Connection;
         } catch (SQLException e) {
             System.err.println("❌ Lỗi kết nối TP3: " + e.getMessage());
-            e.printStackTrace();
+            System.out.println("⚡ FAILOVER: Chuyển sang SV6 (Backup TP3)...");
+            
+            tp3UsingBackup = true;
+            startHealthCheck();
+            
+            Connection sv6 = getSV6Connection();
+            if (sv6 != null) {
+                System.out.println("✅ FAILOVER thành công: Đang sử dụng SV6 thay TP3");
+                return sv6;
+            }
+            
+            System.err.println("❌ CẢ TP3 VÀ SV6 ĐỀU KHÔNG KẾT NỐI ĐƯỢC!");
             return null;
         }
     }
 
     /**
-     * Kết nối tới User Database
+     * Kết nối tới User Database (SomeE)
      */
     public static Connection getUserDbConnection() {
         try {
             if (userDbConnection == null || userDbConnection.isClosed()) {
                 userDbConnection = DriverManager.getConnection(USER_DB_URL, USER_DB_USER, USER_DB_PASS);
-                System.out.println("✅ Kết nối User DB thành công");
+                System.out.println("✅ Kết nối User DB (SomeE) thành công");
             }
             return userDbConnection;
         } catch (SQLException e) {
-            System.err.println("❌ Lỗi kết nối User DB: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("❌ Lỗi kết nối User DB (SomeE): " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Kết nối tới UsersCsdlPt của một Site cụ thể (0, 1, 2)
+     * Đã tối ưu hóa để dùng chung kết nối với database nghiệp vụ (DienLuc)
+     */
+    public static Connection getUsersCsdlPtConnection(int siteIndex) {
+        if (siteIndex < 0 || siteIndex > 2) return null;
+        
+        // Hợp nhất kết nối: Dùng chung kết nối chính (DienLuc) cho cả hệ thống Quản trị
+        // Việc này giúp giảm số lượng kết nối phải mở từ 6 xuống còn 3.
+        switch (siteIndex) {
+            case 0: return getTP1Connection();
+            case 1: return getTP2Connection();
+            case 2: return getTP3Connection();
+            default: return null;
+        }
+    }
+
+    /**
+     * Kết nối tới UsersCsdlPt (Thường dùng cho Site hiện tại)
+     */
+    public static Connection getUsersCsdlPtConnection() {
+        // Mặc định lấy theo Site hiện tại hoặc TP1 (Local)
+        // Nếu là Admin site 1, 2, 3 thì lấy tương ứng
+        int defaultSite = SessionManager.getSiteIdForAdmin() - 1; 
+        if (defaultSite < 0) defaultSite = 0; // Fallback về TP1
+        return getUsersCsdlPtConnection(defaultSite);
     }
 
     // ====== KẾT NỐI BACKUP SERVERS ======
@@ -286,7 +393,7 @@ public class DatabaseConnection {
     }
 
     /**
-     * Kết nối trực tiếp tới SV5 (Backup TP2 - Supabase PostgreSQL)
+     * Kết nối trực tiếp tới SV5 (Backup TP2 - Somee MSSQL)
      */
     public static Connection getSV5Connection() {
         try {
@@ -299,6 +406,55 @@ public class DatabaseConnection {
             System.err.println("❌ Lỗi kết nối SV5 (Backup TP2): " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Kết nối trực tiếp tới SV6 (Backup TP3 - Somee MSSQL)
+     */
+    public static Connection getSV6Connection() {
+        try {
+            if (sv6Connection == null || sv6Connection.isClosed()) {
+                sv6Connection = DriverManager.getConnection(SV6_URL, SV6_USER, SV6_PASS);
+                System.out.println("✅ Kết nối SV6 (Backup TP3) thành công");
+            }
+            return sv6Connection;
+        } catch (SQLException e) {
+            System.err.println("❌ Lỗi kết nối SV6 (Backup TP3): " + e.getMessage());
+            return null;
+        }
+    }
+
+    // ====== CÁC HÀM KẾT NỐI 'IM LẶNG' (SILENT) DÙNG CHO PRE-WARM ======
+    // Chỉ mở kết nối JDBC, KHÔNG kích hoạt Sync hay Health Check
+
+    public static Connection getTP1Silent() {
+        try {
+            if (tp1Connection == null || tp1Connection.isClosed()) {
+                tp1Connection = DriverManager.getConnection(TP1_URL, TP1_USER, TP1_PASS);
+                System.out.println("⚡ [Pre-warm] Đã mở cổng TP1 (Hà Nội)");
+            }
+            return tp1Connection;
+        } catch (Exception e) { return null; }
+    }
+
+    public static Connection getTP2Silent() {
+        try {
+            if (tp2Connection == null || tp2Connection.isClosed()) {
+                tp2Connection = DriverManager.getConnection(TP2_URL, TP2_USER, TP2_PASS);
+                System.out.println("⚡ [Pre-warm] Đã mở cổng TP2 (Cloud Somee)");
+            }
+            return tp2Connection;
+        } catch (Exception e) { return null; }
+    }
+
+    public static Connection getTP3Silent() {
+        try {
+            if (tp3Connection == null || tp3Connection.isClosed()) {
+                tp3Connection = DriverManager.getConnection(TP3_URL, TP3_USER, TP3_PASS);
+                System.out.println("⚡ [Pre-warm] Đã mở cổng TP3 (Supabase)");
+            }
+            return tp3Connection;
+        } catch (Exception e) { return null; }
     }
 
     /**
@@ -325,6 +481,19 @@ public class DatabaseConnection {
             return DriverManager.getConnection(TP2_URL, TP2_USER, TP2_PASS);
         } catch (SQLException e) {
             System.err.println("🔍 [Diagnostic] Lỗi kết nối trực tiếp TP2: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Lấy connection trực tiếp tới TP3 PRIMARY (bỏ qua failover)
+     * Dùng cho health check và sync
+     */
+    public static Connection getTP3DirectConnection() {
+        try {
+            return DriverManager.getConnection(TP3_URL, TP3_USER, TP3_PASS);
+        } catch (SQLException e) {
+            System.err.println("🔍 [Diagnostic] Lỗi kết nối trực tiếp TP3: " + e.getMessage());
             return null;
         }
     }
@@ -392,8 +561,30 @@ public class DatabaseConnection {
                     }
                 }
 
-                // Nếu cả 2 đều không dùng backup nữa → dừng health check
-                if (!tp1UsingBackup && !tp2UsingBackup) {
+                // Kiểm tra TP3 nếu đang dùng backup
+                if (tp3UsingBackup) {
+                    System.out.println("🏥 Health Check: Đang kiểm tra TP3...");
+                    Connection testConn = getTP3DirectConnection();
+                    if (testConn != null) {
+                        try {
+                            if (testConn.isValid(3)) {
+                                System.out.println("🎉 TP3 đã ONLINE trở lại!");
+                                tp3Connection = testConn;
+                                tp3UsingBackup = false;
+                                new Thread(() -> BackupSyncService.syncBackupToTP3()).start();
+                            } else {
+                                testConn.close();
+                            }
+                        } catch (SQLException ex) {
+                            try { testConn.close(); } catch (SQLException ignored) {}
+                        }
+                    } else {
+                        System.out.println("🏥 TP3 vẫn đang sập...");
+                    }
+                }
+
+                // Nếu cả 3 đều không dùng backup nữa → dừng health check
+                if (!tp1UsingBackup && !tp2UsingBackup && !tp3UsingBackup) {
                     System.out.println("✅ Tất cả server chính đã online. Dừng health check.");
                     stopHealthCheck();
                 }
@@ -427,8 +618,12 @@ public class DatabaseConnection {
         closeConnection(tp2Connection, "TP2");
         closeConnection(tp3Connection, "TP3");
         closeConnection(userDbConnection, "User DB");
+        for (int i = 0; i < 3; i++) {
+            closeConnection(usersCsdlPtConnections[i], "UsersCsdlPt Site " + (i+1));
+        }
         closeConnection(sv4Connection, "SV4 (Backup TP1)");
         closeConnection(sv5Connection, "SV5 (Backup TP2)");
+        closeConnection(sv6Connection, "SV6 (Backup TP3)");
     }
 
     private static void closeConnection(Connection conn, String name) {
@@ -466,7 +661,14 @@ public class DatabaseConnection {
         }
 
         // Backup servers (test trực tiếp)
-        System.out.println("\n--- Backup Servers ---");
+        System.out.println("--- Kiểm tra UsersCsdlPt Multi-Site ---");
+        for (int i = 0; i < 3; i++) {
+            Connection c = getUsersCsdlPtConnection(i);
+            if (c != null) System.out.println("✅ UsersCsdlPt Site " + (i+1) + " OK");
+            else System.out.println("❌ UsersCsdlPt Site " + (i+1) + " FAILED");
+        }
+        
+        System.out.println("--- Kiểm tra Backup Servers ---");
         Connection sv4Test = getSV4Connection();
         if (sv4Test != null) {
             System.out.println("✅ SV4 (Backup TP1) OK");
@@ -480,6 +682,13 @@ public class DatabaseConnection {
         } else {
             System.out.println("❌ SV5 (Backup TP2) KHÔNG KẾT NỐI ĐƯỢC");
         }
+
+        Connection sv6Test = getSV6Connection();
+        if (sv6Test != null) {
+            System.out.println("✅ SV6 (Backup TP3) OK");
+        } else {
+            System.out.println("❌ SV6 (Backup TP3) KHÔNG KẾT NỐI ĐƯỢC");
+        }
         
         System.out.println("==========================================\n");
     }
@@ -491,7 +700,7 @@ public class DatabaseConnection {
         switch (siteIndex) {
             case 0: return tp1UsingBackup ? "SV4 (Backup TP1)" : "TP 1";
             case 1: return tp2UsingBackup ? "SV5 (Backup TP2)" : "TP 2";
-            case 2: return "TP 3";
+            case 2: return tp3UsingBackup ? "SV6 (Backup TP3)" : "TP 3";
             default: return "Unknown";
         }
     }
@@ -512,11 +721,16 @@ public class DatabaseConnection {
 
     /**
      * Kiểm tra site i có đang dùng PostgreSQL không
-     * siteIndex 0=TP1/SV4, 1=TP2/SV5, 2=TP3
+     * siteIndex 0=TP1/SV4, 1=TP2/SV5, 2=TP3/SV6
      */
     public static boolean isPostgresSite(int siteIndex) {
-        // TP3 luôn là PostgreSQL
-        if (siteIndex == 2) return true;
+        // Nếu là site TP3 (Index 2)
+        if (siteIndex == 2) {
+            // Nếu đang dùng backup SV6 (MSSQL) -> không phải Postgres
+            if (tp3UsingBackup) return false;
+            // Ngược lại TP3 chính là Postgres
+            return true;
+        }
         // TP1, SV4, TP2, SV5 đều là MSSQL
         return false;
     }

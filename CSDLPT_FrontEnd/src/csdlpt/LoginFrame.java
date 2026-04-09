@@ -16,7 +16,18 @@ public class LoginFrame extends javax.swing.JFrame {
     /** Creates new form LoginFrame */
     public LoginFrame() {
         initComponents();
-    }
+        
+        // --- KHỞI ĐỘNG KẾT NỐI SỚM (PRE-WARM) ---
+        // Chạy ngầm việc mở cổng kết nối JDBC (Silent Connection)
+        // Tuyệt đối không kích hoạt Health Check hay Sync lúc này để tránh làm nghẽn mạng!
+        new Thread(() -> {
+            System.out.println("⚡ Đang chuẩn bị sẵn kết nối (Pre-warming - Silent mode)...");
+            DatabaseConnection.getTP1Silent(); // Mở cổng Site 1 (Hà Nội)
+            DatabaseConnection.getTP2Silent(); // Mở cổng Site 2 (Somee)
+            DatabaseConnection.getTP3Silent(); // Mở cổng Site 3 (Supabase)
+            System.out.println("✅ Pre-warming hoàn tất! Sẵn sàng đăng nhập.");
+        }).start();
+   }
 
     /** This method is called from within the constructor to
      * initialize the form.
