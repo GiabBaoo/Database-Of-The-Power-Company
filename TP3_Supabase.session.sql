@@ -1,4 +1,4 @@
--- 1. TẠO CẤU TRÚC BẢNG (Xây nhà)
+-- 1. TẠO CẤU TRÚC BẢNG 
 CREATE TABLE IF NOT EXISTS chinhanh (maCN varchar(20) PRIMARY KEY, tenCN varchar(255), thanhpho varchar(100));
 CREATE TABLE IF NOT EXISTS nhanvien (maNV varchar(20) PRIMARY KEY, hoten varchar(255) NOT NULL, maCN varchar(20) REFERENCES chinhanh(maCN));
 CREATE TABLE IF NOT EXISTS khachhang (maKH varchar(20) PRIMARY KEY, tenKH varchar(255) NOT NULL, maCN varchar(20) REFERENCES chinhanh(maCN));
@@ -7,45 +7,61 @@ CREATE TABLE IF NOT EXISTS hoadon (soHDN varchar(26) PRIMARY KEY, thang int CHEC
 CREATE TABLE IF NOT EXISTS Users (MaNV varchar(20) PRIMARY KEY, Email varchar(200), Password varchar(512), Role varchar(30), Salt varchar(100));
 CREATE TABLE IF NOT EXISTS lichSuChuyenCongTac (id serial PRIMARY KEY, MaNV varchar(20) REFERENCES nhanvien(maNV), NgayChuyen timestamp DEFAULT current_timestamp, maCNCu varchar(20), maCNMoi varchar(20), MaKH varchar(20));
 
+-- 1b. Đồng nhất mã chi nhánh TP3: CN03 -> CN3 (CHỈ CÓ TÁC DỤNG SAU KHI BẠN CHẠY SCRIPT NÀY TRÊN SUPABASE)
+-- Luôn tạo dòng CN3 trước (tránh lỗi FK khi UPDATE nhanvien/khachhang)
+INSERT INTO chinhanh (maCN, tenCN, thanhpho)
+SELECT 'CN3', tenCN, thanhpho FROM chinhanh WHERE maCN = 'CN03'
+ON CONFLICT (maCN) DO NOTHING;
+
+INSERT INTO chinhanh (maCN, tenCN, thanhpho)
+VALUES ('CN3', 'Điện lực Thủ Đức', 'TP Hồ Chí Minh')
+ON CONFLICT (maCN) DO NOTHING;
+
+UPDATE khachhang SET maCN = 'CN3' WHERE maCN = 'CN03';
+UPDATE nhanvien SET maCN = 'CN3' WHERE maCN = 'CN03';
+UPDATE lichSuChuyenCongTac SET maCNCu = 'CN3' WHERE maCNCu = 'CN03';
+UPDATE lichSuChuyenCongTac SET maCNMoi = 'CN3' WHERE maCNMoi = 'CN03';
+DELETE FROM chinhanh WHERE maCN = 'CN03';
+
 -- 2. NẠP DỮ LIỆU CHO CHI NHÁNH 3 VÀ TÀI KHOẢN (Mua nội thất)
 INSERT INTO chinhanh (maCN, tenCN, thanhpho)
-VALUES ('CN03', 'Điện lực Thủ Đức', 'TP Hồ Chí Minh')
+VALUES ('CN3', 'Điện lực Thủ Đức', 'TP Hồ Chí Minh')
 ON CONFLICT (maCN) DO UPDATE
 SET tenCN = EXCLUDED.tenCN,
     thanhpho = EXCLUDED.thanhpho;
 
 INSERT INTO nhanvien (maNV, hoten, maCN)
-VALUES ('NV03', 'Nguyễn Tấn Kiệt', 'CN03')
+VALUES ('NV03', 'Nguyễn Tấn Kiệt', 'CN3')
 ON CONFLICT (maNV) DO UPDATE
 SET hoten = EXCLUDED.hoten,
     maCN = EXCLUDED.maCN;
 
 INSERT INTO nhanvien (maNV, hoten, maCN)
-VALUES ('NV0302', 'Trần Thị Bích', 'CN03')
+VALUES ('NV0302', 'Trần Thị Bích', 'CN3')
 ON CONFLICT (maNV) DO UPDATE
 SET hoten = EXCLUDED.hoten,
     maCN = EXCLUDED.maCN;
 
 INSERT INTO khachhang (maKH, tenKH, maCN)
-VALUES ('KH03', 'Lê Thị C', 'CN03')
+VALUES ('KH03', 'Lê Thị C', 'CN3')
 ON CONFLICT (maKH) DO UPDATE
 SET tenKH = EXCLUDED.tenKH,
     maCN = EXCLUDED.maCN;
 
 INSERT INTO khachhang (maKH, tenKH, maCN)
-VALUES ('KH0302', 'Phạm Văn D', 'CN03')
+VALUES ('KH0302', 'Phạm Văn D', 'CN3')
 ON CONFLICT (maKH) DO UPDATE
 SET tenKH = EXCLUDED.tenKH,
     maCN = EXCLUDED.maCN;
 
 INSERT INTO khachhang (maKH, tenKH, maCN)
-VALUES ('KH0303', 'Nguyễn Thị E', 'CN03')
+VALUES ('KH0303', 'Nguyễn Thị E', 'CN3')
 ON CONFLICT (maKH) DO UPDATE
 SET tenKH = EXCLUDED.tenKH,
     maCN = EXCLUDED.maCN;
 
 INSERT INTO hopdong (soHD, ngayKy, maKH, soDienKe, kwDinhMuc, dongiaKW, isPaid)
-VALUES ('HD_003', DATE '2026-03-01', 'KH03', 'DK-CN03-0001', 400, 3500, false)
+VALUES ('HD_003', DATE '2026-03-01', 'KH03', 'DK-CN3-0001', 400, 3500, false)
 ON CONFLICT (soHD) DO UPDATE
 SET ngayKy = EXCLUDED.ngayKy,
     maKH = EXCLUDED.maKH,
@@ -55,7 +71,7 @@ SET ngayKy = EXCLUDED.ngayKy,
     isPaid = EXCLUDED.isPaid;
 
 INSERT INTO hopdong (soHD, ngayKy, maKH, soDienKe, kwDinhMuc, dongiaKW, isPaid)
-VALUES ('HD_003_02', DATE '2026-03-05', 'KH0302', 'DK-CN03-0002', 300, 3500, true)
+VALUES ('HD_003_02', DATE '2026-03-05', 'KH0302', 'DK-CN3-0002', 300, 3500, true)
 ON CONFLICT (soHD) DO UPDATE
 SET ngayKy = EXCLUDED.ngayKy,
     maKH = EXCLUDED.maKH,
@@ -65,7 +81,7 @@ SET ngayKy = EXCLUDED.ngayKy,
     isPaid = EXCLUDED.isPaid;
 
 INSERT INTO hopdong (soHD, ngayKy, maKH, soDienKe, kwDinhMuc, dongiaKW, isPaid)
-VALUES ('HD_003_03', DATE '2026-03-10', 'KH0303', 'DK-CN03-0003', 500, 3500, false)
+VALUES ('HD_003_03', DATE '2026-03-10', 'KH0303', 'DK-CN3-0003', 500, 3500, false)
 ON CONFLICT (soHD) DO UPDATE
 SET ngayKy = EXCLUDED.ngayKy,
     maKH = EXCLUDED.maKH,
