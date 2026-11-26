@@ -1,87 +1,122 @@
-# ⚡ Distributed Electricity Management System (DoAnCSDLPT)
+# Distributed Electricity Management System 
 
-A distributed database management system for electricity services built on a multi-platform **Distributed Database (CSDLPT)** architecture (SQL Server & PostgreSQL), featuring **automatic failover**, **backup synchronization**, **centralized logging with Loki/Grafana**, and **AI-powered SQL replay script generation (Ollama)**.
+A distributed database management system for electricity services built on a multi-platform **Distributed Database (CSDLPT)** architecture combining **Microsoft SQL Server** and **PostgreSQL**. The project includes a **Node.js/Express REST API**, **Java Swing Desktop Applications**, **automatic database failover and recovery**, **centralized logging with Grafana Loki**, and **AI-assisted SQL replay script generation via Ollama**.
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ![System Architecture Diagram](images/architecture_diagram.png)
 
-### Database Fragmentation (3 Primary Shards + 3 Backup Servers)
+### 1. Database Fragmentation and Replication
 
-| Shard | Region | DBMS | Role | Backup Server |
+Data is horizontally partitioned across three regional shards (**TP1**, **TP2**, **TP3**), each paired with a dedicated backup server (**SV4**, **SV5**, **SV6**):
+
+| Shard | Region | DBMS | Primary Databases | Backup Server |
 | :--- | :--- | :--- | :--- | :--- |
-| **TP1** | Hanoi | SQL Server (Local) | `DienLuc` & `UsersCsdlPt` databases | **SV4** (Somee MSSQL) |
-| **TP2** | Da Nang / Cloud | SQL Server (Somee) | `csdlpt_lab2` database (Electricity & Users) | **SV5** (Somee MSSQL / PostgreSQL) |
-| **TP3** | Ho Chi Minh City | PostgreSQL (Supabase) | `postgres` database | **SV6** (Somee MSSQL) |
+| **TP1** | Hanoi | SQL Server (Local) | `DienLuc` and `UsersCsdlPt` | **SV4** (Somee MSSQL) |
+| **TP2** | Da Nang / Cloud | SQL Server (Somee) | `csdlpt_lab2` (shared for `DienLuc` and `Users`) | **SV5** (Somee MSSQL / PostgreSQL) |
+| **TP3** | Ho Chi Minh City | PostgreSQL (Supabase) | `postgres` (`public` schema) | **SV6** (Somee MSSQL) |
 
-- **Failover & Health Check**: When a primary shard (TP1/TP2) loses connection, the system automatically fails over to its corresponding backup server and runs a periodic health check every 30 seconds to restore primary connections once online (`src/Config/DBConnection.js`, `CSDLPT_FrontEnd/src/csdlpt/DatabaseConnection.java`).
-- **Backup Synchronization (`BackupSyncService`)**: Logs operations to the `_backup_changelog` table on backup servers during primary downtime and replays them back to the primary server upon recovery.
+### 2. Core Database Entities
+
+Each shard stores its regional slice of the electricity domain tables:
+- `chinhanh` (`maCN`, `tenCN`, `thanhpho`): Regional branches.
+- `nhanvien` (`maNV`, `hoten`, `maCN`): Staff members assigned to a branch.
+- `khachhang` (`maKH`, `tenKH`, `maCN`): Customers registered at a branch.
+- `hopdong` (`soHD`, `ngayKy`, `maKH`, `soDienKe`, `kwDinhMuc`, `dongiaKW`, `isPaid`): Electricity meter contracts and payment status.
+- `hoadon` (`soHDN`, `thang`, `nam`, `soHD`, `maNV`, `soTien`): Monthly electricity bills issued by staff.
+
+Authentication and cross-branch transfer tracking tables (`UsersCsdlPt`):
+- `Users` (`MaNV`, `Email`, `Password`, `Role`, `Salt`): User credentials hashed with SHA-512 and per-user salt.
+- `lichSuChuyenCongTac` (`id`, `MaNV`, `MaKH`, `NgayChuyen`, `maCNCu`, `maCNMoi`): Audit log of staff transfers across branches and cities.
+
+### 3. Failover, Health Check, and Backup Synchronization
+
+- **Backend Automatic Failover (`src/Config/DBConnection.js`)**: If **TP1** or **TP2** fails to connect, the pool manager automatically switches to **SV4** or **SV5** respectively and starts a background health check every 30 seconds. Once the primary server comes back online, traffic automatically switches back.
+- **Desktop Failover & Changelog Sync (`CSDLPT_FrontEnd/src/csdlpt/DatabaseConnection.java`, `BackupSyncService.java`)**:
+  - Supports failover from **TP1 -> SV4**, **TP2 -> SV5**, and **TP3 -> SV6**.
+  - Records `INSERT`, `UPDATE`, and `DELETE` operations performed on backup servers into `_backup_changelog` and replays them to primary servers upon recovery.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 DoAnCSDLPT/
-├── server.js                  # Express Backend entry point (default port: 9999)
-├── swagger.js                 # Swagger UI configuration (/api-docs)
-├── resetAdminPassword.js      # Utility script to reset Admin password
-├── Admin/                     # Admin APIs (Branches, Staff, Counts, Transfer History)
-├── Staff/                     # Staff APIs (Customers, Contracts, Bills, Staff Info)
-├── Question/                  # Distributed analytical query APIs (cau1, cau2)
+├── server.js                  # Express backend entry point (default port: 9999)
+├── swagger.js                 # OpenAPI 3.0 / Swagger UI configuration (/api-docs)
+├── resetAdminPassword.js      # CLI utility to reset the Admin password in UsersCsdlPt
+├── Admin/
+│   ├── AddSite.js             # Create new branch on the target city shard
+│   ├── Count.js               # Aggregate counts (branches, customers, staff) across all shards
+│   ├── History.js             # Fetch staff branch transfer history
+│   ├── Sites.js               # List, update, and delete branches across shards
+│   └── Staffs.js              # List, create, delete, and transfer staff across branches/cities
+├── Staff/
+│   ├── AllInformation.js      # Retrieve staff profile and assigned branch details
+│   ├── Contract.js            # List and create electricity contracts (ULID-generated IDs)
+│   ├── Customers.js           # List, add (with cross-shard unpaid contract check), and update customers
+│   └── bills.js               # Issue bills (ULID-generated IDs), mark contracts paid, list bills
+├── Question/
+│   └── Question.js            # Distributed analytical queries (cau1, cau2)
 ├── src/
 │   ├── Config/
-│   │   ├── DBConnection.js    # Multi-DB connection pools (TP1, TP2, TP3, SV4, SV5) & Failover
-│   │   ├── QueryHelper.js     # Query normalization helper between MSSQL and PostgreSQL
-│   │   └── logger.js          # Winston JSON logger partitioned by city (TP1, TP2, TP3)
+│   │   ├── DBConnection.js    # Connection pools for TP1, TP2, TP3, SV4, SV5 & failover logic
+│   │   ├── QueryHelper.js     # Translates MSSQL parameterized queries (@param) to PostgreSQL ($1)
+│   │   └── logger.js          # Winston DailyRotateFile JSON logger partitioned by TP1, TP2, TP3
 │   ├── Middleware/
-│   │   └── verifyToken.js     # JWT authentication middleware
+│   │   └── verifyToken.js     # JWT verification middleware
 │   └── Route/
-│       └── Login.js           # Authentication route (SHA-512 + Salt, JWT)
-├── CSDLPT_FrontEnd/           # Java Swing Desktop App (direct JDBC to 3 shards + backups)
+│       └── Login.js           # Login endpoint (SHA-512 + salt verification, JWT issuance)
+├── CSDLPT_FrontEnd/           # Primary Java Swing desktop client (direct JDBC to shards & backups)
 ├── CSDLPT/                    # Initial Java Swing UI version
-├── scripts/                   # SQL scripts for schema, Users tables & Stored Procedures per server
-├── data/                      # SQL Server data files (.mdf, .ldf) for TP1, TP2, TP3
-├── loki-logging/              # Docker Compose for Grafana Loki, Promtail, Grafana & logs
-├── AI/                        # Tool to parse JSON logs and call Ollama (qwen2.5-coder) for SQL replay
-├── test/                      # Database connection and logger test scripts
-├── SUPABASE_GUIDE.md          # Setup guide for PostgreSQL on Supabase (TP3)
-└── SWAGGER_EXAMPLES.md        # Swagger API usage examples
+├── scripts/                   # SQL initialization, user setup, and stored procedure scripts
+├── data/                      # SQL Server database files (.mdf, .ldf) for TP1, TP2, TP3
+├── loki-logging/              # Docker Compose stack (Loki, Promtail, Grafana), logs, and SQL replays
+├── AI/
+│   └── generateSQL.js         # Reads JSON logs and calls Ollama (qwen2.5-coder) to generate SQL replay
+├── test/                      # Connection and logger verification scripts
+├── SUPABASE_GUIDE.md          # Supabase PostgreSQL (TP3) setup and query guide
+└── SWAGGER_EXAMPLES.md        # Sample API requests and responses
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-- **Backend**: Node.js, Express 5, `mssql`, `pg`, `jsonwebtoken`, `crypto` (SHA-512), `winston`, `winston-daily-rotate-file`, `swagger-jsdoc`, `swagger-ui-express`, `ulid`.
+- **Backend**: Node.js, Express 5, `mssql`, `pg`, `jsonwebtoken`, `crypto` (SHA-512), `bcrypt`, `ulid`, `winston`, `winston-daily-rotate-file`, `swagger-jsdoc`, `swagger-ui-express`, `cors`, `dotenv`.
 - **Desktop Frontend**: Java Swing (JDK 8+/11+, NetBeans/Ant), JDBC (`mssql-jdbc`, `postgresql`).
 - **Databases**: Microsoft SQL Server (Local & Somee Cloud), PostgreSQL (Supabase).
-- **Logging & Monitoring**: Docker, Grafana Loki, Promtail, Grafana.
-- **AI Replay Log**: Ollama (`qwen2.5-coder`).
+- **Logging & Monitoring**: Docker Compose, Grafana Loki 2.9.0, Promtail 2.9.0, Grafana.
+- **AI Log Replay**: Ollama local LLM (`qwen2.5-coder`).
 
 ---
 
-## ⚙️ Installation & Configuration
+## Prerequisites
 
-### 1. Prerequisites
 - **Node.js** (v18+ recommended)
 - **Java JDK** 11+ (for `CSDLPT_FrontEnd`)
-- **SQL Server** (for local TP1) & **Somee / Supabase** accounts (for cloud shards)
-- **Docker & Docker Compose** (optional, for Loki/Grafana)
-- **Ollama** with `qwen2.5-coder` model (optional, for AI Replay Log)
+- **Microsoft SQL Server** (local instance for TP1) and **Somee / Supabase** instances (for cloud shards and backups)
+- **Docker & Docker Compose** (optional, for Loki/Grafana log aggregation)
+- **Ollama** with the `qwen2.5-coder` model pulled (optional, for AI SQL replay generation)
 
-### 2. Database Initialization
-Run the SQL scripts in `scripts/` on their respective servers:
+---
+
+## Setup and Configuration
+
+### 1. Database Initialization
+
+Execute the SQL scripts in `scripts/` against their corresponding servers:
 - Primary shards: `setup_server1_hanoi.sql`, `setup_server2_danang.sql`, `setup_server3_hcm.sql`
-- Backup shards: `setup_server4_backup_tp1.sql`, `setup_server5_backup_tp2.sql`, `setup_server6_backup_tp3.sql`
-- Users tables: `setup_userscsdlpt_tp1.sql`, `setup_userscsdlpt_tp2.sql`, `setup_userscsdlpt_tp3.sql`
+- Backup servers: `setup_server4_backup_tp1.sql`, `setup_server5_backup_tp2.sql`, `setup_server6_backup_tp3.sql`
+- User management tables: `setup_userscsdlpt_tp1.sql`, `setup_userscsdlpt_tp2.sql`, `setup_userscsdlpt_tp3.sql`
 
-> See [SUPABASE_GUIDE.md](SUPABASE_GUIDE.md) for setting up TP3 on Supabase.
+Refer to [SUPABASE_GUIDE.md](SUPABASE_GUIDE.md) for detailed instructions on configuring PostgreSQL on Supabase (TP3).
 
-### 3. Environment Variables (`.env`)
-Create or update `.env` in the root directory with the following variables:
+### 2. Environment Variables (`.env`)
+
+Create or update `.env` in the project root with the following configuration:
 
 ```env
 port_serverNode=9999
@@ -145,28 +180,40 @@ DB_Name5=your_db
 
 ---
 
-## 🚀 Running the Project
+## Running the Project
 
 ### 1. Backend API (Node.js)
+
 ```bash
 npm install
 node server.js
 ```
-- Server URL: `http://localhost:9999`
-- Swagger API Docs: `http://localhost:9999/api-docs`
-- Failover Status: `http://localhost:9999/failover-status`
 
-Test database connections:
+- API Base URL: `http://localhost:9999`
+- Swagger UI Documentation: `http://localhost:9999/api-docs`
+- Failover Status Endpoint: `http://localhost:9999/failover-status`
+
+Verify connectivity to all configured database pools:
 ```bash
 node test/testConnectAll.js
 ```
 
-### 2. Desktop Frontend (`CSDLPT_FrontEnd`)
-1. Add `mssql-jdbc` and `postgresql` JDBC drivers into `CSDLPT_FrontEnd/lib/`.
-2. Verify connection strings in `CSDLPT_FrontEnd/src/csdlpt/DatabaseConnection.java`.
-3. Open `CSDLPT_FrontEnd` in NetBeans and press **F6** (Run Project), or follow [CSDLPT_FrontEnd/QUICK_START.md](CSDLPT_FrontEnd/QUICK_START.md) and [CSDLPT_FrontEnd/SETUP.md](CSDLPT_FrontEnd/SETUP.md).
+Reset the default Admin password if needed:
+```bash
+node resetAdminPassword.js
+```
 
-### 3. Logging Stack (Loki + Promtail + Grafana)
+### 2. Desktop Frontend (`CSDLPT_FrontEnd`)
+
+1. Place `mssql-jdbc` and `postgresql` JDBC driver JARs inside `CSDLPT_FrontEnd/lib/`.
+2. Verify connection URLs and credentials in `CSDLPT_FrontEnd/src/csdlpt/DatabaseConnection.java`.
+3. Open `CSDLPT_FrontEnd` in NetBeans and run the project (`F6`), or build via Ant. See [CSDLPT_FrontEnd/SETUP.md](CSDLPT_FrontEnd/SETUP.md) and [CSDLPT_FrontEnd/QUICK_START.md](CSDLPT_FrontEnd/QUICK_START.md) for CLI instructions.
+
+### 3. Centralized Logging (Loki + Promtail + Grafana)
+
+The backend writes daily rotated JSON logs (`TP1-YYYY-MM-DD.log`, `TP2-YYYY-MM-DD.log`, `TP3-YYYY-MM-DD.log`) with custom levels (`insert`, `update`, `delete`, `info`, `warn`, `error`) to `D:/loki-logging/logs` (configured in `src/Config/logger.js`).
+
+Start the monitoring stack:
 ```bash
 cd loki-logging
 docker-compose up -d
@@ -175,24 +222,61 @@ docker-compose up -d
 - **Grafana**: `http://localhost:3300`
 
 ### 4. AI SQL Replay Generator (Ollama)
-Ensure `ollama serve` is running with the `qwen2.5-coder` model:
+
+Converts JSON mutation logs recorded after a given backup timestamp into T-SQL replay scripts using Ollama (`qwen2.5-coder`).
+
+Ensure `ollama serve` is running, then execute:
 ```bash
 cd AI
 npm install
 node generateSQL.js TP1 2025-11-26 13:00:00
 ```
-Generated SQL scripts are saved to `ai-sql-output/<CITY>/<CITY>-<DAY>-replay.sql`.
+Generated SQL scripts are written to `D:/loki-logging/ai-sql-output/<CITY>/<CITY>-<DAY>-replay.sql`.
 
 ---
 
-## 📡 Main API Endpoints
+## API Endpoints Overview
 
-| Group | Prefix / Endpoint | Description |
+All protected routes require a JWT token in the `Authorization` header (obtained from `POST /login`).
+
+### System & Authentication
+| Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| **System** | `GET /`, `GET /failover-status` | Server health and primary/backup failover status |
-| **Auth** | `POST /login`, `GET /login/protected` | Authenticate and return JWT token & role (`Admin`/`staff`) |
-| **Admin** | `/admin/CountSite`, `/admin/CountCustomer`, `/admin/CountStaff` | Count total branches, customers, and staff across all 3 shards |
-| **Admin** | `/admin/addsite`, `/admin/sites`, `/admin/sites/:id` | Create, list, update, and delete branches |
-| **Admin** | `/admin/staffs`, `/admin/staffs/:id`, `/admin/historyRecords` | Manage staff, cross-branch/city transfers, and transfer history |
-| **Staff** | `/employee/customers`, `/employee/contracts`, `/employee/bills`, `/employee/allInformation` | Manage customers, electricity meter contracts, and bill payments |
-| **Queries** | `/question/cau1`, `/question/cau2` | Query bills by staff/customer and bills exceeding kW quota |
+| `GET` | `/` | Health check confirming the Node.js server is running |
+| `GET` | `/failover-status` | Returns current primary/backup status for `tp1`, `tp2`, and `tp3` |
+| `POST` | `/login` | Authenticates email and password (SHA-512 + salt), returns JWT token and role |
+| `GET` | `/login/protected` | Sample protected route for verifying JWT authentication |
+
+### Admin (`/admin`)
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/admin/CountSite` | Total branch count across all 3 shards |
+| `GET` | `/admin/CountCustomer` | Total customer count across all 3 shards |
+| `GET` | `/admin/CountStaff` | Total staff count across all 3 shards |
+| `POST` | `/admin/addsite` | Add a new branch to the shard matching `thanhpho` (`TP1`, `TP2`, or `TP3`) |
+| `GET` | `/admin/sites` | List all branches across all shards |
+| `PUT` | `/admin/sites/:id` | Update branch name on the specified city shard |
+| `DELETE` | `/admin/sites/:id` | Delete a branch if no staff or customers are assigned to it |
+| `GET` | `/admin/staffs` | List all staff across all shards |
+| `POST` | `/admin/staffs` | Create a staff record on the target shard and a user account in `UsersCsdlPt` |
+| `PUT` | `/admin/staffs/:id` | Transfer staff between branches/cities and log to `lichSuChuyenCongTac` |
+| `DELETE` | `/admin/staffs/:id` | Delete a staff user account from `UsersCsdlPt` |
+| `GET` | `/admin/historyRecords` | Fetch all staff transfer records from `lichSuChuyenCongTac` |
+
+### Employee (`/employee`)
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/employee/allInformation` | Get staff member name, branch name, branch code, and city by `maNV` |
+| `GET` | `/employee/customers` | List customers belonging to the same branch as `maNV` |
+| `POST` | `/employee/customers` | Add a customer after verifying no unpaid contracts exist across any shard |
+| `PUT` | `/employee/customers/:id` | Update customer details |
+| `GET` | `/employee/contracts` | List contracts for customers in the staff member's branch |
+| `POST` | `/employee/contracts` | Create a new contract with a ULID `soHD` on the target city shard |
+| `GET` | `/employee/bills` | List bills issued by `maNV` |
+| `POST` | `/employee/bills` | Issue a bill with a ULID `soHDN` and mark the contract `isPaid = 1` |
+
+### Analytical Queries (`/question`)
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/question/cau1` | Query bills (`soHDN`, `thang`, `nam`, `soTien`) filtered by `maNV` and `maKH` across all shards |
+| `GET` | `/question/cau2` | Query bills where consumed kWh (`soTien / donGiaKW`) exceeds `kwDinhMuc` across all shards |

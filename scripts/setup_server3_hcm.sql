@@ -24,24 +24,25 @@ BEGIN
 END $$;
 
 -- 2. Thêm danh sách Chi Nhánh (Chỉ lưu chi nhánh sở tại)
-INSERT INTO chinhanh (maCN, tenCN, thanhpho) VALUES ('CN3', 'Chi nhánh Hồ Chí Minh', 'TP Hồ Chí Minh');
+INSERT INTO chinhanh (macn, tencn, thanhpho) VALUES ('CN3', 'Chi nhánh Hồ Chí Minh', 'TP Hồ Chí Minh');
 
 -- 3. Thêm Nhân Viên cho Chi nhánh 3 (Hồ Chí Minh)
-INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('admin3', 'Người quản trị - TP HCM', 'CN3', 'admin', 'admin');
-INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('NV301', 'Trần Thị Hương', 'CN3', '123', 'user');
-INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('NV302', 'Đặng Văn Kiên', 'CN3', '123', 'user');
-INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('NV303', 'Nguyễn Thị Lam', 'CN3', '123', 'user');
+INSERT INTO nhanvien (manv, hoten, macn, password, role) VALUES ('admin', 'Quản trị viên hệ thống', 'CN3', 'admin', 'admin');
+INSERT INTO nhanvien (manv, hoten, macn, password, role) VALUES ('admin3', 'Người quản trị - TP HCM', 'CN3', 'admin', 'admin');
+INSERT INTO nhanvien (manv, hoten, macn, password, role) VALUES ('NV301', 'Trần Thị Hương', 'CN3', '123', 'user');
+INSERT INTO nhanvien (manv, hoten, macn, password, role) VALUES ('NV302', 'Đặng Văn Kiên', 'CN3', '123', 'user');
+INSERT INTO nhanvien (manv, hoten, macn, password, role) VALUES ('NV303', 'Nguyễn Thị Lam', 'CN3', '123', 'user');
 
 -- 4. Thêm Khách Hàng cho Chi nhánh 3
-INSERT INTO khachhang (maKH, tenKH, maCN) VALUES ('KH301', 'Công ty Sài Gòn Mới', 'CN3');
-INSERT INTO khachhang (maKH, tenKH, maCN) VALUES ('KH302', 'Khu Công nghiệp Tân Bình', 'CN3');
+INSERT INTO khachhang (makh, tenkh, macn) VALUES ('KH301', 'Công ty Sài Gòn Mới', 'CN3');
+INSERT INTO khachhang (makh, tenkh, macn) VALUES ('KH302', 'Khu Công nghiệp Tân Bình', 'CN3');
 
 -- 5. Thêm Hợp Đồng cho Chi nhánh 3
-INSERT INTO hopdong (soHD, maKH, soDienKe, kwDinhMuc, dongiaKW) VALUES ('HD301', 'KH301', 3001, 1500, 4000.0);
-INSERT INTO hopdong (soHD, maKH, soDienKe, kwDinhMuc, dongiaKW) VALUES ('HD302', 'KH302', 3002, 5000, 4200.0);
+INSERT INTO hopdong (sohd, makh, sodienke, kwdinhmuc, dongiakw) VALUES ('HD301', 'KH301', 3001, 1500, 4000.0);
+INSERT INTO hopdong (sohd, makh, sodienke, kwdinhmuc, dongiakw) VALUES ('HD302', 'KH302', 3002, 5000, 4200.0);
 
 -- 6. Thêm Hóa Đơn cho Chi nhánh 3
-INSERT INTO hoadon (soHDN, thang, nam, soHD, maNV, soTien) VALUES ('BILL301', 1, 2026, 'HD301', 'NV301', 6000000.0);
+INSERT INTO hoadon (sohdn, thang, nam, sohd, manv, sotien) VALUES ('BILL301', 1, 2026, 'HD301', 'NV301', 6000000.0);
 
 -- 7. Tạo Functions (CRUD) cho Server 3
 CREATE OR REPLACE FUNCTION sp_AddStaff(p_maNV VARCHAR, p_hoten VARCHAR, p_maCN VARCHAR, p_password VARCHAR, p_role VARCHAR)

@@ -22,6 +22,7 @@ GO
 INSERT INTO chinhanh (maCN, tenCN, thanhpho) VALUES ('CN2', N'Chi nhánh Đà Nẵng', N'Đà Nẵng');
 GO
 -- 3. Thêm Nhân Viên cho Chi nhánh 2 (Đà Nẵng)
+INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('admin', N'Quản trị viên hệ thống', 'CN2', 'admin', 'admin');
 INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('admin2', N'Người quản trị - Đà Nẵng', 'CN2', 'admin', 'admin');
 INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('NV201', N'Phạm Văn Dũng', 'CN2', '123', 'user');
 INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('NV202', N'Hoàng Thị Giang', 'CN2', '123', 'user');

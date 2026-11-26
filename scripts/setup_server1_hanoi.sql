@@ -32,6 +32,7 @@ INSERT INTO chinhanh (maCN, tenCN, thanhpho) VALUES ('CN1', N'Chi nhánh Hà N�
 GO
 -- 3. Thêm Nhân Viên cho Chi nhánh 1 (Hà Nội)
 -- Tài khoản Admin
+INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('admin', N'Quản trị viên hệ thống', 'CN1', 'admin', 'admin');
 INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('admin1', N'Người quản trị - Hà Nội', 'CN1', 'admin', 'admin');
 -- Nhân viên bình thường
 INSERT INTO nhanvien (maNV, hoten, maCN, password, role) VALUES ('NV101', N'Nguyễn Văn An', 'CN1', '123', 'user');

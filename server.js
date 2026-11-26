@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require('express');
 const cors = require('cors');
 const swaggerSetup = require('./swagger');
-const { GetManh1DBPool, GetManh2DBPool, GetManh3DBPool, GetManh2UserDBPool } = require('./src/Config/DBConnection');
+const { GetManh1DBPool, GetManh2DBPool, GetManh3DBPool, GetManh2UserDBPool, GetSV4DBPool, GetSV5DBPool, getFailoverStatus } = require('./src/Config/DBConnection');
 
 const app = express();
 
@@ -34,26 +34,40 @@ app.use((req, res, next) => {
 // 2. KẾT NỐI DATABASE
 // ==================================================================
 
-// Khởi chạy kết nối DB song song (nên dùng Promise.all cho clean hơn)
+// Khởi chạy kết nối DB song song (bao gồm backup servers)
 GetManh1DBPool()
     .then(() => console.log("✅ Mảnh 1: OK"))
-    .catch((err) => console.error("❌ Lỗi Mảnh 1:", err));
+    .catch((err) => console.error("❌ Lỗi Mảnh 1:", err.message));
 
 GetManh2DBPool()
     .then(() => console.log("✅ Mảnh 2: OK"))
-    .catch((err) => console.error("❌ Lỗi Mảnh 2:", err));
+    .catch((err) => console.error("❌ Lỗi Mảnh 2:", err.message));
 
 GetManh3DBPool()
     .then(() => console.log("✅ Mảnh 3: OK"))
-    .catch((err) => console.error("❌ Lỗi Mảnh 3:", err));
+    .catch((err) => console.error("❌ Lỗi Mảnh 3:", err.message));
 
 GetManh2UserDBPool()
     .then(() => console.log("✅ Mảnh User: OK"))
-    .catch((err) => console.error("❌ Lỗi Mảnh User:", err));
+    .catch((err) => console.error("❌ Lỗi Mảnh User:", err.message));
+
+// Backup Servers
+GetSV4DBPool()
+    .then(() => console.log("✅ SV4 (Backup TP1): OK"))
+    .catch((err) => console.error("❌ Lỗi SV4 (Backup TP1):", err.message));
+
+GetSV5DBPool()
+    .then(() => console.log("✅ SV5 (Backup TP2): OK"))
+    .catch((err) => console.error("❌ Lỗi SV5 (Backup TP2):", err.message));
 
 // Route kiểm tra server sống hay chết
 app.get("/", (req, res) => {
     res.send("Server Node.js đang chạy ngon lành!");
+});
+
+// Route kiểm tra trạng thái failover
+app.get("/failover-status", (req, res) => {
+    res.json(getFailoverStatus());
 });
 
 // ==================================================================
